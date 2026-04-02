@@ -1,0 +1,23 @@
+# A new branch for XF Li
+
+=== GIT TEST ===
+
+# normal git commands
+
+## new branch
+```sh
+git checkout -b new-branch
+
+or
+
+git branch new-branch
+git checkout new-branch
+```
+
+## update and commit
+```sh
+git add .
+git commit -m "git test"
+
+git push -u origin new-branch
+```
