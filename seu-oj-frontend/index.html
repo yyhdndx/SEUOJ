@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEU OJ</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <a class="brand" href="#/problems">SEU OJ</a>
+        <span class="brand-note">Compact coding arena for SEU</span>
+      </div>
+      <nav class="topnav">
+        <a href="#/">Home</a>
+        <a href="#/problems">Problems</a>
+        <a href="#/submissions">Submissions</a>
+        <a href="#/admin/problems" id="admin-manage-link" style="display:none;">Manage Problems</a>
+        <a href="#/admin/problems/new" id="admin-link" style="display:none;">Create Problem</a>
+        <a href="#/auth">Account</a>
+      </nav>
+      <div class="account-slot" id="account-slot"></div>
+    </header>
+
+    <main class="content content-full">
+      <div id="flash" class="flash hidden"></div>
+      <div id="app"></div>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

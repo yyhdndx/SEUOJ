@@ -1,0 +1,19 @@
+CREATE TABLE problems (
+                          id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+                          display_id VARCHAR(32) DEFAULT NULL,
+                          title VARCHAR(255) NOT NULL,
+                          description MEDIUMTEXT NOT NULL,
+                          input_desc TEXT,
+                          output_desc TEXT,
+                          sample_input TEXT,
+                          sample_output TEXT,
+                          hint TEXT,
+                          source VARCHAR(255) DEFAULT NULL,
+                          judge_mode ENUM('standard') NOT NULL DEFAULT 'standard',
+                          time_limit_ms INT NOT NULL DEFAULT 1000,
+                          memory_limit_mb INT NOT NULL DEFAULT 128,
+                          visible TINYINT(1) NOT NULL DEFAULT 1,
+                          created_by BIGINT UNSIGNED NOT NULL,
+                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

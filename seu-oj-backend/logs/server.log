@@ -1,0 +1,123 @@
+2026/03/29 15:12:50.269020 [bootstrap] logging initialized: logs\server.log
+2026/03/29 15:12:50.293534 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 18:32:19.495358 [bootstrap] logging initialized: logs\server.log
+2026/03/29 18:32:21.593960 connect redis failed: dial tcp 127.0.0.1:6379: connectex: No connection could be made because the target machine actively refused it.
+2026/03/29 18:38:30.747830 [bootstrap] logging initialized: logs\server.log
+2026/03/29 18:38:30.771515 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 18:50:03.054705 [bootstrap] logging initialized: logs\server.log
+2026/03/29 18:50:03.089762 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 18:50:33.269561 [bootstrap] logging initialized: logs\server.log
+2026/03/29 18:50:33.290250 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 18:53:23.891649 [bootstrap] logging initialized: logs\server.log
+2026/03/29 18:53:23.916015 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:05:32.787456 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:05:32.809427 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:14:54.627760 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:14:54.652495 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:25:00.431420 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:25:00.451635 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:29:38.226416 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:29:38.248469 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:33:52.083967 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:33:52.105768 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:36:13.337413 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:36:13.360925 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:43:46.368910 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:43:46.392931 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:45:51.169188 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:45:51.191445 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 19:54:23.842558 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:54:25.938165 connect redis failed: dial tcp 127.0.0.1:6379: connectex: No connection could be made because the target machine actively refused it.
+2026/03/29 19:55:05.915393 [bootstrap] logging initialized: logs\server.log
+2026/03/29 19:55:05.942518 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:02:53.354992 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:02:53.380204 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:06:49.936277 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:06:49.957818 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:09:01.651936 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:09:01.680649 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:12:31.395479 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:12:31.420939 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:21:32.321900 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:21:32.343734 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:23:37.393776 [judge-worker] dequeued submission=3
+2026/03/29 20:23:37.412343 [judge-worker] submission=3 running with 2 active testcase(s)
+2026/03/29 20:23:37.793201 [judge-worker] submission=3 testcase=5 status=Accepted runtime_ms=77 error=-
+2026/03/29 20:23:37.805512 [judge-worker] submission=3 testcase=6 status=Accepted runtime_ms=11 error=-
+2026/03/29 20:23:37.812126 [judge-worker] submission=3 finished status=Accepted passed=2/2 total_runtime_ms=88 elapsed_ms=418
+2026/03/29 20:26:49.668174 [judge-worker] dequeued submission=4
+2026/03/29 20:26:49.674435 [judge-worker] submission=4 running with 2 active testcase(s)
+2026/03/29 20:26:50.050846 [judge-worker] submission=4 testcase=5 status=Accepted runtime_ms=79 error=-
+2026/03/29 20:26:50.062645 [judge-worker] submission=4 testcase=6 status=Accepted runtime_ms=11 error=-
+2026/03/29 20:26:50.067557 [judge-worker] submission=4 finished status=Accepted passed=2/2 total_runtime_ms=90 elapsed_ms=399
+2026/03/29 20:29:18.769277 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:29:18.793098 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/29 20:32:35.399791 [bootstrap] logging initialized: logs\server.log
+2026/03/29 20:32:35.422174 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 11:56:53.215428 [bootstrap] logging initialized: logs\server.log
+2026/03/30 11:56:53.230133 connect database failed: dial tcp 127.0.0.1:3306: connectex: No connection could be made because the target machine actively refused it.
+2026/03/30 11:57:16.683627 [bootstrap] logging initialized: logs\server.log
+2026/03/30 11:57:16.695239 connect database failed: dial tcp 127.0.0.1:3306: connectex: No connection could be made because the target machine actively refused it.
+2026/03/30 11:57:44.965269 [bootstrap] logging initialized: logs\server.log
+2026/03/30 11:57:45.010397 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 11:58:08.763525 [judge-worker] dequeued submission=5
+2026/03/30 11:58:08.770459 [judge-worker] submission=5 running with 2 active testcase(s)
+2026/03/30 11:58:23.778852 [judge-worker] submission=5 compile error: compile timeout
+2026/03/30 12:06:32.493440 [bootstrap] logging initialized: logs\server.log
+2026/03/30 12:06:32.514867 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 12:10:26.805124 [judge-worker] dequeued submission=6
+2026/03/30 12:10:26.812709 [judge-worker] submission=6 running with 2 active testcase(s)
+2026/03/30 12:10:27.820295 [judge-worker] submission=6 testcase=5 status=Wrong Answer runtime_ms=305 error=output mismatch
+2026/03/30 12:10:28.130849 [judge-worker] submission=6 testcase=6 status=Wrong Answer runtime_ms=298 error=output mismatch
+2026/03/30 12:10:28.138067 [judge-worker] submission=6 finished status=Wrong Answer passed=0/2 total_runtime_ms=603 elapsed_ms=1332
+2026/03/30 12:51:40.122533 [bootstrap] logging initialized: logs\server.log
+2026/03/30 12:51:40.146515 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 12:54:19.632375 [bootstrap] logging initialized: logs\server.log
+2026/03/30 12:54:19.656816 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 12:54:37.485562 [judge-worker] dequeued submission=7
+2026/03/30 12:54:37.491449 [judge-worker] submission=7 running with 2 active testcase(s)
+2026/03/30 12:54:38.591257 [judge-worker] submission=7 testcase=5 status=Accepted runtime_ms=322 error=-
+2026/03/30 12:54:38.918348 [judge-worker] submission=7 testcase=6 status=Accepted runtime_ms=316 error=-
+2026/03/30 12:54:38.923623 [judge-worker] submission=7 finished status=Accepted passed=2/2 total_runtime_ms=638 elapsed_ms=1437
+2026/03/30 13:18:41.767048 [bootstrap] logging initialized: logs\server.log
+2026/03/30 13:18:41.792237 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 13:21:27.124597 [bootstrap] logging initialized: logs\server.log
+2026/03/30 13:21:27.148897 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 13:36:21.425879 [bootstrap] logging initialized: logs\server.log
+2026/03/30 13:36:21.451597 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 13:39:41.086247 [bootstrap] logging initialized: logs\server.log
+2026/03/30 13:39:41.109484 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 20:05:25.122808 [bootstrap] logging initialized: logs\server.log
+2026/03/30 20:05:25.258830 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 20:14:04.517579 [bootstrap] logging initialized: logs\server.log
+2026/03/30 20:14:04.539062 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 20:19:00.156449 [bootstrap] logging initialized: logs\server.log
+2026/03/30 20:19:00.195667 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/03/30 20:19:00.284263 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/03/30 20:19:00.355735 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/03/30 20:19:00.357304 [judge-worker] dequeued submission=8
+2026/03/30 20:19:00.364582 [judge-worker] submission=8 running with 2 active testcase(s)
+2026/03/30 20:19:01.212953 [judge-worker] submission=8 testcase=5 status=Accepted runtime_ms=288 error=-
+2026/03/30 20:19:01.525145 [judge-worker] submission=8 testcase=6 status=Accepted runtime_ms=306 error=-
+2026/03/30 20:19:01.533446 [judge-worker] submission=8 finished status=Accepted passed=2/2 total_runtime_ms=594 elapsed_ms=1176
+2026/03/30 20:19:01.535057 [judge-worker] dequeued submission=9
+2026/03/30 20:19:01.538584 [judge-worker] submission=9 running with 2 active testcase(s)
+2026/03/30 20:19:02.381585 [judge-worker] submission=9 testcase=5 status=Accepted runtime_ms=294 error=-
+2026/03/30 20:19:02.669195 [judge-worker] submission=9 testcase=6 status=Accepted runtime_ms=281 error=-
+2026/03/30 20:19:02.673764 [judge-worker] submission=9 finished status=Accepted passed=2/2 total_runtime_ms=575 elapsed_ms=1138
+2026/03/30 20:19:02.674865 [judge-worker] dequeued submission=10
+2026/03/30 20:19:02.678953 [judge-worker] submission=10 running with 2 active testcase(s)
+2026/03/30 20:19:03.541317 [judge-worker] submission=10 testcase=5 status=Accepted runtime_ms=314 error=-
+2026/03/30 20:19:03.845775 [judge-worker] submission=10 testcase=6 status=Accepted runtime_ms=299 error=-
+2026/03/30 20:19:03.850231 [judge-worker] submission=10 finished status=Accepted passed=2/2 total_runtime_ms=613 elapsed_ms=1175
+2026/03/30 20:19:03.851931 [judge-worker] dequeued submission=11
+2026/03/30 20:19:03.855994 [judge-worker] submission=11 running with 2 active testcase(s)
+2026/03/30 20:19:04.664639 [judge-worker] submission=11 testcase=5 status=Accepted runtime_ms=284 error=-
+2026/03/30 20:19:04.959574 [judge-worker] submission=11 testcase=6 status=Accepted runtime_ms=289 error=-
+2026/03/30 20:19:04.964224 [judge-worker] submission=11 finished status=Accepted passed=2/2 total_runtime_ms=573 elapsed_ms=1112
+2026/03/30 20:19:17.712167 [judge-worker] dequeued submission=12
+2026/03/30 20:19:17.719513 [judge-worker] submission=12 running with 2 active testcase(s)
+2026/03/30 20:19:18.601998 [judge-worker] submission=12 testcase=5 status=Accepted runtime_ms=315 error=-
+2026/03/30 20:19:18.927129 [judge-worker] submission=12 testcase=6 status=Accepted runtime_ms=317 error=-
+2026/03/30 20:19:18.931444 [judge-worker] submission=12 finished status=Accepted passed=2/2 total_runtime_ms=632 elapsed_ms=1218
+2026/03/30 20:24:54.946883 [judge-worker] shutdown complete
