@@ -4,10 +4,10 @@ server:
 
 database:
   host: "127.0.0.1"
-  port: "3306"
+  port: "3307"
   user: "root"
-  password: "woziji521521"
-  name: "seuoj"
+  password: "seuseuseu"
+  name: "ojdb"
 
 redis:
   addr: "127.0.0.1:6379"

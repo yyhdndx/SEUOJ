@@ -121,3 +121,14 @@
 2026/03/30 20:19:18.927129 [judge-worker] submission=12 testcase=6 status=Accepted runtime_ms=317 error=-
 2026/03/30 20:19:18.931444 [judge-worker] submission=12 finished status=Accepted passed=2/2 total_runtime_ms=632 elapsed_ms=1218
 2026/03/30 20:24:54.946883 [judge-worker] shutdown complete
+2026/04/06 21:05:09.706064 [bootstrap] logging initialized: logs\server.log
+2026/04/06 21:05:09.780292 connect database failed: Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+2026/04/06 23:00:42.409198 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:00:42.451454 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:03:59.945059 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:03:59.972890 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:04:21.050740 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:04:21.078699 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:04:21.180904 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/06 23:04:21.261181 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/06 23:06:11.720752 [judge-worker] shutdown complete

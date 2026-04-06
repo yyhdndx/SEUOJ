@@ -21,3 +21,113 @@ git commit -m "git test"
 
 git push -u origin new-branch
 ```
+
+
+# Startup
+
+## Preparations
+Docker Desktop
+Go
+
+## MySQL/Redis in Docker
+打开Docker Desktop 并登录
+### MySQL
+In cmd
+```cmd
+docker run -d --name seuoj-mysql --restart unless-stopped ^
+  -e MYSQL_ROOT_PASSWORD=seuseuseu ^
+  -e MYSQL_DATABASE=ojdb ^
+  -p 3307:3306 ^
+  mysql:8
+```
+// params: --name docker容器名; PASSWORD为mysql密码; DATABASE为数据库名; -p 3307:3306 为端口映射; mysql:8 为镜像名;
+
+等待约 10-30 秒，直到 MySQL 就绪。可查看日志：
+```cmd
+docker logs seuoj-mysql
+```
+
+### Redis
+In cmd
+```cmd
+docker run -d --name seuoj-redis --restart unless-stopped ^
+  -p 6379:6379 ^
+  redis:7
+```
+
+## 初始化表结构
+In cmd
+```cmd
+docker exec -i seuoj-mysql mysql -uroot -pseuseuseu ojdb < "e:\codes\advanced-ds\seuoj\seu-oj-backend\database\user.sql"
+docker exec -i seuoj-mysql mysql -uroot -pseuseuseu ojdb < "e:\codes\advanced-ds\seuoj\seu-oj-backend\database\problems.sql"
+docker exec -i seuoj-mysql mysql -uroot -pseuseuseu ojdb < "e:\codes\advanced-ds\seuoj\seu-oj-backend\database\problem_testcases.sql"
+docker exec -i seuoj-mysql mysql -uroot -pseuseuseu ojdb < "e:\codes\advanced-ds\seuoj\seu-oj-backend\database\submissions.sql"
+docker exec -i seuoj-mysql mysql -uroot -pseuseuseu ojdb < "e:\codes\advanced-ds\seuoj\seu-oj-backend\database\submission_results.sql"
+```
+
+## seu-oj-backend/config/config.yaml
+修改部分地方
+```yaml
+server:
+  host: "0.0.0.0"
+  port: "8080"
+
+database:
+  host: "127.0.0.1"
+  port: "3307"
+  user: "root"
+  password: "seuseuseu"
+  name: "ojdb"
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+auth:
+  jwt_secret: "seu-oj-dev-secret"
+
+sandbox:
+  docker_image: "gcc:13"
+  compile_image: ""
+  run_image: ""
+  user: "65534:65534"
+  cpus: "1.0"
+  memory_mb: 256
+  pids_limit: 64
+  tmpfs_mb: 64
+  file_size_kb: 1024
+  output_limit_kb: 256
+  compile_output_kb: 256
+  read_only_rootfs: true
+  compile_timeout_sec: 15
+  run_timeout_buffer_ms: 500
+```
+
+## 拉判题镜像
+```sh
+docker pull gcc:13
+```
+
+## 启动后端（两个进程）
+```sh
+cd ./seu-oj-backend # 假设当前目录为项目seuoj根目录
+go mod download
+```
+
+### 终端1
+```sh
+go run .
+```
+
+### 终端2
+```sh
+go run ./cmd/judge-worker
+```
+
+## 启动
+浏览器访问[http://localhost:8080](http://localhost:8080)
+
+自检接口：[http://localhost:8080/api/health](http://localhost:8080/api/health)
+
+docker检查: `docker ps`
