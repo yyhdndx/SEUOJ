@@ -23,3 +23,13 @@ type LoginResponse struct {
 	Token string       `json:"token"`
 	User  UserResponse `json:"user"`
 }
+
+type UpdateProfileRequest struct {
+	Username string `json:"username" binding:"required,min=3,max=20"`
+	UserID   string `json:"userid" binding:"required,min=3,max=50"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required,min=6"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
+}

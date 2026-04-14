@@ -1,0 +1,47 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 学生 as Student
+actor 教师 as Teacher
+actor 管理员 as Admin
+
+rectangle "SEU OJ - 训练与评测用例" {
+  usecase "注册/登录" as UC_Auth
+  usecase "维护个人资料" as UC_Profile
+  usecase "运行样例" as UC_Run
+  usecase "提交代码" as UC_Submit
+  usecase "查看我的提交" as UC_MySubmission
+  usecase "查看提交详情" as UC_SubmissionDetail
+  usecase "查看题解" as UC_SolutionView
+}
+
+Student --> UC_Auth
+Student --> UC_Profile
+Student --> UC_Run
+Student --> UC_Submit
+Student --> UC_MySubmission
+Student --> UC_SubmissionDetail
+Student --> UC_SolutionView
+
+Teacher --> UC_Auth
+Teacher --> UC_Profile
+Teacher --> UC_Run
+Teacher --> UC_Submit
+Teacher --> UC_MySubmission
+Teacher --> UC_SubmissionDetail
+Teacher --> UC_SolutionView
+
+Admin --> UC_Auth
+Admin --> UC_Profile
+Admin --> UC_SubmissionDetail
+
+UC_SubmissionDetail ..> UC_Submit : <<extend>>
+UC_Run ..> UC_Submit : <<related>>
+@enduml

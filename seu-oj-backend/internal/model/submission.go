@@ -6,6 +6,8 @@ type Submission struct {
 	ID          uint64     `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	UserID      uint64     `gorm:"column:user_id" json:"user_id"`
 	ProblemID   uint64     `gorm:"column:problem_id" json:"problem_id"`
+	ContestID   *uint64    `gorm:"column:contest_id;index:idx_submissions_contest_id" json:"contest_id"`
+	IsPractice  bool       `gorm:"column:is_practice;not null;default:false" json:"is_practice"`
 	Language    string     `gorm:"column:language" json:"language"`
 	Code        string     `gorm:"column:code" json:"code"`
 	Status      string     `gorm:"column:status" json:"status"`

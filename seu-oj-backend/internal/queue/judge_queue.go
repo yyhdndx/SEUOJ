@@ -36,3 +36,7 @@ func (q *JudgeQueue) DequeueSubmission(ctx context.Context) (uint64, error) {
 	}
 	return submissionID, nil
 }
+
+func (q *JudgeQueue) Length(ctx context.Context) (int64, error) {
+	return q.client.LLen(ctx, JudgeQueueKey).Result()
+}

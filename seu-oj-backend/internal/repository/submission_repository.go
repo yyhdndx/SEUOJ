@@ -26,13 +26,23 @@ func (r *SubmissionRepository) GetByID(id uint64) (*model.Submission, error) {
 	return &submission, nil
 }
 
-func (r *SubmissionRepository) ListByUserID(userID uint64, page, pageSize int, problemID *uint64, status *string) ([]model.Submission, int64, error) {
+func (r *SubmissionRepository) ListByUserID(userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) ([]model.Submission, int64, error) {
+	return r.List(page, pageSize, &userID, problemID, contestID, status)
+}
+
+func (r *SubmissionRepository) List(page, pageSize int, userID *uint64, problemID *uint64, contestID *uint64, status *string) ([]model.Submission, int64, error) {
 	var submissions []model.Submission
 	var total int64
 
-	query := r.db.Model(&model.Submission{}).Where("user_id = ?", userID)
+	query := r.db.Model(&model.Submission{})
+	if userID != nil {
+		query = query.Where("user_id = ?", *userID)
+	}
 	if problemID != nil {
 		query = query.Where("problem_id = ?", *problemID)
+	}
+	if contestID != nil {
+		query = query.Where("contest_id = ?", *contestID)
 	}
 	if status != nil && *status != "" {
 		query = query.Where("status = ?", *status)

@@ -1,0 +1,80 @@
+﻿# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+seu-oj-backend/logs/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+cover.out
+*.coverprofile
+.gocache/
+seu-oj-backend/.gocache/
+vendor/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+coverage/
+*.tsbuildinfo
+
+# Python / generic temp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.tmp/
+tmp/
+temp/
+*.tmp
+
+# Environment / local config
+.env
+.env.*
+!.env.example
+seu-oj-backend/config/config.yaml
+!seu-oj-backend/config/config.example.yaml
+
+# Local runtime / sqlite / pid
+*.pid
+*.pid.lock
+*.seed
+*.sqlite
+*.sqlite3
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Generated docs / exports (keep source markdown)
+*.pdf
+
+# Misc
+*.bak
+*.swp
+*.swo

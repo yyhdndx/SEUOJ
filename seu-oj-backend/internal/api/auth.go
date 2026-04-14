@@ -67,15 +67,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	rawUserID, exists := c.Get(middleware.ContextUserIDKey)
-	if !exists {
-		response.Error(c, "user not found in context")
-		return
-	}
-
-	userID, ok := rawUserID.(uint64)
+	userID, ok := authContextUserID(c)
 	if !ok {
-		response.Error(c, "invalid user context")
 		return
 	}
 
@@ -90,4 +83,73 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	response.OK(c, user)
+}
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, ok := authContextUserID(c)
+	if !ok {
+		return
+	}
+
+	var req dto.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "invalid request parameters")
+		return
+	}
+
+	user, err := h.authService.UpdateProfile(userID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUsernameTaken):
+			response.Error(c, "username already exists")
+		case errors.Is(err, service.ErrUserIDTaken):
+			response.Error(c, "userid already exists")
+		default:
+			response.Error(c, "update profile failed")
+		}
+		return
+	}
+
+	response.OK(c, user)
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID, ok := authContextUserID(c)
+	if !ok {
+		return
+	}
+
+	var req dto.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "invalid request parameters")
+		return
+	}
+
+	if err := h.authService.ChangePassword(userID, req); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidCurrentPassword):
+			response.Error(c, "current password is incorrect")
+		default:
+			response.Error(c, "change password failed")
+		}
+		return
+	}
+
+	response.OK(c, gin.H{"changed": true})
+}
+
+func authContextUserID(c *gin.Context) (uint64, bool) {
+	rawUserID, exists := c.Get(middleware.ContextUserIDKey)
+	if !exists {
+		response.Error(c, "user not found in context")
+		return 0, false
+	}
+
+	userID, ok := rawUserID.(uint64)
+	if !ok {
+		response.Error(c, "invalid user context")
+		return 0, false
+	}
+
+	return userID, true
 }

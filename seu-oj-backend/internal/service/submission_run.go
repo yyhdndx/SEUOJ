@@ -10,16 +10,10 @@ import (
 	"seu-oj-backend/internal/model"
 )
 
-func (s *SubmissionService) RunSampleTests(req dto.RunSubmissionRequest) (*dto.RunSubmissionResponse, error) {
-	problem, err := s.problemRepo.GetByID(req.ProblemID)
+func (s *SubmissionService) RunSampleTests(userID uint64, role string, req dto.RunSubmissionRequest) (*dto.RunSubmissionResponse, error) {
+	problem, err := s.loadRunnableProblem(userID, role, req.ProblemID, req.ContestID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrProblemUnavailable
-		}
 		return nil, err
-	}
-	if !problem.Visible {
-		return nil, ErrProblemUnavailable
 	}
 
 	testcases, err := s.problemTestcaseRepo.ListByProblemID(problem.ID)
@@ -88,6 +82,34 @@ func (s *SubmissionService) RunSampleTests(req dto.RunSubmissionRequest) (*dto.R
 	}
 
 	return resp, nil
+}
+
+func (s *SubmissionService) loadRunnableProblem(userID uint64, role string, problemID uint64, contestID *uint64) (*model.Problem, error) {
+	if contestID != nil {
+		if err := s.contestService.ValidateProblemAccess(userID, role, *contestID, problemID); err != nil {
+			return nil, err
+		}
+		problem, err := s.problemRepo.GetByID(problemID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrProblemUnavailable
+			}
+			return nil, err
+		}
+		return problem, nil
+	}
+
+	problem, err := s.problemRepo.GetByID(problemID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProblemUnavailable
+		}
+		return nil, err
+	}
+	if !problem.Visible {
+		return nil, ErrProblemUnavailable
+	}
+	return problem, nil
 }
 
 func compareOutput(actual, expected string) bool {

@@ -121,3 +121,139 @@
 2026/03/30 20:19:18.927129 [judge-worker] submission=12 testcase=6 status=Accepted runtime_ms=317 error=-
 2026/03/30 20:19:18.931444 [judge-worker] submission=12 finished status=Accepted passed=2/2 total_runtime_ms=632 elapsed_ms=1218
 2026/03/30 20:24:54.946883 [judge-worker] shutdown complete
+2026/04/02 18:41:41.716267 [bootstrap] logging initialized: logs\server.log
+2026/04/02 18:41:43.898293 connect redis failed: dial tcp 127.0.0.1:6379: connectex: No connection could be made because the target machine actively refused it.
+2026/04/02 19:18:40.578927 [bootstrap] logging initialized: logs\server.log
+2026/04/02 19:18:40.610204 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/02 19:18:40.782343 validate sandbox failed: sandbox infrastructure error: failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+2026/04/02 19:19:00.323527 [bootstrap] logging initialized: logs\server.log
+2026/04/02 19:19:00.347975 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/02 19:19:07.375066 [bootstrap] logging initialized: logs\server.log
+2026/04/02 19:19:07.396233 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/02 19:19:07.538601 validate sandbox failed: sandbox infrastructure error: failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+2026/04/02 19:25:45.718439 [bootstrap] logging initialized: logs\server.log
+2026/04/02 19:25:45.742187 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/02 19:25:45.803374 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/02 19:25:45.873936 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/02 19:28:30.744988 [judge-worker] shutdown complete
+2026/04/02 19:28:31.780628 [bootstrap] logging initialized: logs\server.log
+2026/04/02 19:28:31.800577 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/02 19:28:31.892282 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/02 19:28:31.967146 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/02 19:30:02.803506 [judge-worker] dequeued submission=13
+2026/04/02 19:30:02.834383 [judge-worker] submission=13 running with 2 active testcase(s)
+2026/04/02 19:30:03.735636 [judge-worker] submission=13 testcase=5 status=Accepted runtime_ms=322 error=-
+2026/04/02 19:30:04.023745 [judge-worker] submission=13 testcase=6 status=Accepted runtime_ms=276 error=-
+2026/04/02 19:30:04.033328 [judge-worker] submission=13 finished status=Accepted passed=2/2 total_runtime_ms=598 elapsed_ms=1229
+2026/04/02 19:30:18.019365 [judge-worker] shutdown complete
+2026/04/06 23:27:59.734276 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:28:00.346441 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:29:26.831660 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:29:26.881489 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:29:26.982866 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/06 23:29:27.119276 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/06 23:35:59.836343 [judge-worker] shutdown complete
+2026/04/06 23:36:04.653860 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:36:04.717520 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:36:10.220280 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:36:10.270100 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:36:10.372763 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/06 23:36:10.444086 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/06 23:58:21.068888 [judge-worker] shutdown complete
+2026/04/06 23:58:54.349721 [bootstrap] logging initialized: logs\server.log
+2026/04/06 23:58:54.412841 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/06 23:58:54.505626 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/06 23:58:54.638548 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/07 00:00:14.225471 [bootstrap] logging initialized: logs\server.log
+2026/04/07 00:00:14.287630 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 00:02:15.253092 [judge-worker] shutdown complete
+2026/04/07 14:29:08.310974 [bootstrap] logging initialized: logs\server.log
+2026/04/07 14:29:08.363643 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 14:29:08.427411 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/07 14:29:08.495010 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/07 14:29:22.572610 [bootstrap] logging initialized: logs\server.log
+2026/04/07 14:29:22.624494 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 14:39:34.931410 [bootstrap] logging initialized: logs\server.log
+2026/04/07 14:39:34.985354 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 15:01:27.600152 [judge-worker] dequeued submission=22
+2026/04/07 15:01:27.617315 [judge-worker] submission=22 running with 3 active testcase(s)
+2026/04/07 15:01:28.633390 [judge-worker] submission=22 testcase=7 status=Accepted runtime_ms=316 error=-
+2026/04/07 15:01:28.979571 [judge-worker] submission=22 testcase=8 status=Accepted runtime_ms=333 error=-
+2026/04/07 15:01:29.304243 [judge-worker] submission=22 testcase=9 status=Accepted runtime_ms=312 error=-
+2026/04/07 15:01:29.312033 [judge-worker] submission=22 finished status=Accepted passed=3/3 total_runtime_ms=961 elapsed_ms=1711
+2026/04/07 15:32:13.096692 [bootstrap] logging initialized: logs\server.log
+2026/04/07 15:32:13.443859 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 15:59:00.769191 [bootstrap] logging initialized: logs\server.log
+2026/04/07 15:59:00.886826 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 16:51:45.432543 [bootstrap] logging initialized: logs\server.log
+2026/04/07 16:51:45.561171 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 17:55:03.985895 [bootstrap] logging initialized: logs\server.log
+2026/04/07 17:55:04.215612 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 19:55:14.133808 [bootstrap] logging initialized: logs\server.log
+2026/04/07 19:55:14.878568 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/07 20:09:33.531243 [judge-worker] shutdown complete
+2026/04/08 16:59:39.395418 [bootstrap] logging initialized: logs\server.log
+2026/04/08 16:59:39.629783 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/08 16:59:39.695127 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/08 16:59:39.779966 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/08 17:00:13.481364 [bootstrap] logging initialized: logs\server.log
+2026/04/08 17:00:13.618470 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/08 17:05:25.165436 [bootstrap] logging initialized: logs\server.log
+2026/04/08 17:05:25.298694 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/08 17:11:56.610722 [bootstrap] logging initialized: logs\server.log
+2026/04/08 17:11:56.711422 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/08 17:12:46.759213 [judge-worker] dequeued submission=23
+2026/04/08 17:12:46.777417 [judge-worker] submission=23 running with 2 active testcase(s)
+2026/04/08 17:12:47.781285 [judge-worker] submission=23 testcase=5 status=Accepted runtime_ms=422 error=-
+2026/04/08 17:12:48.170909 [judge-worker] submission=23 testcase=6 status=Accepted runtime_ms=371 error=-
+2026/04/08 17:12:48.179421 [judge-worker] submission=23 finished status=Accepted passed=2/2 total_runtime_ms=793 elapsed_ms=1420
+2026/04/08 17:13:02.972923 [judge-worker] shutdown complete
+2026/04/09 13:38:49.989866 [bootstrap] logging initialized: logs\server.log
+2026/04/09 13:38:50.180305 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 13:38:50.256316 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/09 13:38:50.330274 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/09 13:39:05.531284 [bootstrap] logging initialized: logs\server.log
+2026/04/09 13:39:05.639836 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 15:38:04.452530 [judge-worker] shutdown complete
+2026/04/09 15:38:05.919393 [bootstrap] logging initialized: logs\server.log
+2026/04/09 15:38:06.200482 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 15:38:06.309772 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/09 15:38:06.419693 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/09 15:38:08.925097 [bootstrap] logging initialized: logs\server.log
+2026/04/09 15:38:09.069969 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 15:40:19.524096 [bootstrap] logging initialized: logs\server.log
+2026/04/09 15:40:19.661671 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 16:21:35.505883 [judge-worker] dequeued submission=24
+2026/04/09 16:21:35.527930 [judge-worker] submission=24 running with 2 active testcase(s)
+2026/04/09 16:21:36.446610 [judge-worker] submission=24 testcase=5 status=Accepted runtime_ms=291 error=-
+2026/04/09 16:21:36.770074 [judge-worker] submission=24 testcase=6 status=Accepted runtime_ms=311 error=-
+2026/04/09 16:21:36.780889 [judge-worker] submission=24 finished status=Accepted passed=2/2 total_runtime_ms=602 elapsed_ms=1275
+2026/04/09 16:57:42.612682 [bootstrap] logging initialized: logs\server.log
+2026/04/09 16:57:42.759066 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/09 16:58:45.294874 [judge-worker] dequeued submission=25
+2026/04/09 16:58:45.301765 [judge-worker] submission=25 running with 3 active testcase(s)
+2026/04/09 16:58:46.150939 [judge-worker] submission=25 testcase=7 status=Wrong Answer runtime_ms=298 error=output mismatch
+2026/04/09 16:58:46.455108 [judge-worker] submission=25 testcase=8 status=Wrong Answer runtime_ms=293 error=output mismatch
+2026/04/09 16:58:46.727058 [judge-worker] submission=25 testcase=9 status=Wrong Answer runtime_ms=261 error=output mismatch
+2026/04/09 16:58:46.733368 [judge-worker] submission=25 finished status=Wrong Answer passed=0/3 total_runtime_ms=852 elapsed_ms=1438
+2026/04/09 17:02:07.266328 [judge-worker] shutdown complete
+2026/04/14 21:44:40.165792 [bootstrap] logging initialized: logs\server.log
+2026/04/14 21:44:40.181669 connect database failed: dial tcp 127.0.0.1:3306: connectex: No connection could be made because the target machine actively refused it.
+2026/04/14 21:44:55.281258 [bootstrap] logging initialized: logs\server.log
+2026/04/14 21:44:55.290660 connect database failed: dial tcp 127.0.0.1:3306: connectex: No connection could be made because the target machine actively refused it.
+2026/04/14 21:45:16.008197 [bootstrap] logging initialized: logs\server.log
+2026/04/14 21:45:16.141116 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/14 21:45:16.200796 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/14 21:45:16.290576 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/14 21:45:24.881931 [judge-worker] shutdown complete
+2026/04/14 21:45:36.398123 [bootstrap] logging initialized: logs\server.log
+2026/04/14 21:45:36.484719 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/14 21:45:36.541635 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/14 21:45:36.615836 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/14 21:46:13.248073 [bootstrap] logging initialized: logs\server.log
+2026/04/14 21:46:13.355880 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/14 21:46:48.368688 [judge-worker] dequeued submission=26
+2026/04/14 21:46:48.384830 [judge-worker] submission=26 running with 2 active testcase(s)
+2026/04/14 21:46:49.573062 [judge-worker] submission=26 testcase=5 status=Accepted runtime_ms=457 error=-
+2026/04/14 21:46:49.981656 [judge-worker] submission=26 testcase=6 status=Accepted runtime_ms=403 error=-
+2026/04/14 21:46:49.985875 [judge-worker] submission=26 finished status=Accepted passed=2/2 total_runtime_ms=860 elapsed_ms=1617

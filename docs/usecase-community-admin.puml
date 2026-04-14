@@ -1,0 +1,45 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 学生 as Student
+actor 教师 as Teacher
+actor 管理员 as Admin
+
+rectangle "SEU OJ - 社区与平台管理用例" {
+  usecase "浏览论坛" as U1
+  usecase "发帖" as U2
+  usecase "回帖" as U3
+  usecase "编辑/删除本人内容" as U4
+  usecase "论坛管理(置顶/锁帖/删帖)" as U5
+  usecase "管理题目" as U6
+  usecase "管理用户" as U7
+  usecase "管理公告" as U8
+  usecase "查看/重判提交" as U9
+  usecase "查看全局统计" as U10
+}
+
+Student --> U1
+Student --> U2
+Student --> U3
+Student --> U4
+
+Teacher --> U1
+Teacher --> U2
+Teacher --> U3
+Teacher --> U4
+Teacher --> U5
+
+Admin --> U5
+Admin --> U6
+Admin --> U7
+Admin --> U8
+Admin --> U9
+Admin --> U10
+@enduml

@@ -1,0 +1,56 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 游客 as Guest
+actor 学生 as Student
+actor 教师 as Teacher
+actor 管理员 as Admin
+
+rectangle "SEU OJ - 公开访问用例" {
+  usecase "浏览题库" as UC_ProblemList
+  usecase "查看题目详情" as UC_ProblemDetail
+  usecase "查看题解" as UC_SolutionView
+  usecase "浏览比赛" as UC_ContestList
+  usecase "查看比赛详情/榜单" as UC_ContestDetail
+  usecase "查看公告" as UC_AnnouncementView
+  usecase "浏览论坛" as UC_ForumView
+  usecase "查看排行榜" as UC_RanklistView
+}
+
+Guest --> UC_ProblemList
+Guest --> UC_ProblemDetail
+Guest --> UC_SolutionView
+Guest --> UC_ContestList
+Guest --> UC_ContestDetail
+Guest --> UC_AnnouncementView
+Guest --> UC_ForumView
+Guest --> UC_RanklistView
+
+Student --> UC_ProblemList
+Student --> UC_ProblemDetail
+Student --> UC_SolutionView
+Student --> UC_ContestList
+Student --> UC_ContestDetail
+Student --> UC_AnnouncementView
+Student --> UC_ForumView
+Student --> UC_RanklistView
+
+Teacher --> UC_ProblemList
+Teacher --> UC_ProblemDetail
+Teacher --> UC_ContestList
+Teacher --> UC_ContestDetail
+Teacher --> UC_AnnouncementView
+Teacher --> UC_ForumView
+
+Admin --> UC_ProblemList
+Admin --> UC_ContestList
+Admin --> UC_AnnouncementView
+Admin --> UC_ForumView
+@enduml

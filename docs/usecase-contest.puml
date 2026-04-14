@@ -1,0 +1,36 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 学生 as Student
+actor 管理员 as Admin
+
+rectangle "SEU OJ - 比赛用例" {
+  usecase "浏览比赛" as UC_ContestList
+  usecase "报名比赛" as UC_ContestRegister
+  usecase "查看比赛题目" as UC_ContestProblem
+  usecase "比赛环境下提交" as UC_ContestSubmit
+  usecase "查看比赛榜单" as UC_ContestRanklist
+  usecase "查看比赛公告" as UC_ContestAnnouncement
+  usecase "管理比赛" as UC_AdminContest
+}
+
+Student --> UC_ContestList
+Student --> UC_ContestRegister
+Student --> UC_ContestProblem
+Student --> UC_ContestSubmit
+Student --> UC_ContestRanklist
+Student --> UC_ContestAnnouncement
+
+Admin --> UC_AdminContest
+Admin --> UC_ContestRanklist
+Admin --> UC_ContestAnnouncement
+
+UC_ContestSubmit ..> UC_ContestProblem : <<include>>
+@enduml

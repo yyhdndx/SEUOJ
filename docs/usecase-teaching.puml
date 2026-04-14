@@ -1,0 +1,61 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 学生 as Student
+actor 教师 as Teacher
+actor 管理员 as Admin
+
+rectangle "SEU OJ 教学与管理子系统" {
+  package "教学" {
+    usecase "浏览题单" as U1
+    usecase "创建/维护题单" as U2
+    usecase "加入班级" as U3
+    usecase "创建班级" as U4
+    usecase "查看班级信息" as U5
+    usecase "管理班级成员" as U6
+    usecase "查看作业/考试" as U7
+    usecase "发布作业/考试" as U8
+    usecase "管理题解" as U9
+  }
+
+  package "管理" {
+    usecase "管理题目" as U10
+    usecase "管理比赛" as U11
+    usecase "管理用户" as U12
+    usecase "管理公告" as U13
+    usecase "查看/重判提交" as U14
+    usecase "论坛管理" as U15
+  }
+}
+
+Student --> U1
+Student --> U3
+Student --> U5
+Student --> U7
+
+Teacher --> U2
+Teacher --> U4
+Teacher --> U5
+Teacher --> U6
+Teacher --> U8
+Teacher --> U9
+
+Admin --> U10
+Admin --> U11
+Admin --> U12
+Admin --> U13
+Admin --> U14
+Admin --> U15
+Admin --> U9
+
+U8 ..> U1 : <<include>>
+U7 ..> U1 : <<include>>
+U6 ..> U5 : <<extend>>
+@enduml

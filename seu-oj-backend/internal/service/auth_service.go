@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	ErrUsernameTaken      = errors.New("username already exists")
-	ErrUserIDTaken        = errors.New("userid already exists")
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrUserDisabled       = errors.New("user is disabled")
+	ErrUsernameTaken         = errors.New("username already exists")
+	ErrUserIDTaken           = errors.New("userid already exists")
+	ErrInvalidCredentials    = errors.New("invalid username or password")
+	ErrUserDisabled          = errors.New("user is disabled")
+	ErrInvalidCurrentPassword = errors.New("current password is incorrect")
 )
 
 type AuthService struct {
@@ -119,6 +120,57 @@ func (s *AuthService) GetCurrentUser(userID uint64) (*dto.UserResponse, error) {
 
 	resp := toUserResponse(user)
 	return &resp, nil
+}
+
+func (s *AuthService) UpdateProfile(userID uint64, req dto.UpdateProfileRequest) (*dto.UserResponse, error) {
+	var user model.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+
+	username := strings.TrimSpace(req.Username)
+	studentID := strings.TrimSpace(req.UserID)
+
+	var duplicate model.User
+	if err := s.db.Where("username = ? AND id <> ?", username, userID).First(&duplicate).Error; err == nil {
+		return nil, ErrUsernameTaken
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	if err := s.db.Where("userid = ? AND id <> ?", studentID, userID).First(&duplicate).Error; err == nil {
+		return nil, ErrUserIDTaken
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	user.Username = username
+	user.UserID = studentID
+	if err := s.db.Save(&user).Error; err != nil {
+		return nil, err
+	}
+
+	resp := toUserResponse(user)
+	return &resp, nil
+}
+
+func (s *AuthService) ChangePassword(userID uint64, req dto.ChangePasswordRequest) error {
+	var user model.User
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		return ErrInvalidCurrentPassword
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = string(passwordHash)
+	return s.db.Save(&user).Error
 }
 
 func toUserResponse(user model.User) dto.UserResponse {

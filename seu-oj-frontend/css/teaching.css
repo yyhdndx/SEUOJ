@@ -1,0 +1,164 @@
+﻿.teaching-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.teaching-summary-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.teaching-summary-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.teaching-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+}
+
+.teaching-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.teaching-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.teaching-list-card {
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(247, 241, 228, 0.52));
+  padding: 16px;
+}
+
+.teaching-card-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.teaching-card-copy {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.teaching-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.teaching-meta-card {
+  padding: 10px 12px;
+  border: 1px solid rgba(104, 97, 79, 0.14);
+  background: rgba(255, 253, 248, 0.68);
+}
+
+.teaching-meta-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.teaching-meta-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.teaching-empty {
+  padding: 14px;
+  border: 1px dashed rgba(104, 97, 79, 0.35);
+  color: var(--muted);
+  background: rgba(255, 253, 248, 0.68);
+}
+
+.solution-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.solution-card {
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 241, 228, 0.62));
+  padding: 16px;
+}
+
+.solution-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+@media (max-width: 960px) {
+  .teaching-summary-grid,
+  .teaching-card-grid,
+  .teaching-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.assignment-overview-table th,
+.assignment-overview-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.assignment-overview-table td .status-pill {
+  min-width: 56px;
+  justify-content: center;
+}
+
+.teaching-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.teaching-analytics-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(247, 241, 228, 0.62));
+}
+
+.teaching-analytics-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+}
+
+.teaching-ranking-card {
+  border: 1px solid rgba(104, 97, 79, 0.14);
+  background: rgba(255, 253, 248, 0.68);
+  padding: 14px;
+}
+
+.assignment-analytics-table th,
+.assignment-analytics-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table-separator {
+  color: var(--muted);
+  margin: 0 6px;
+}
+
+@media (max-width: 960px) {
+  .teaching-analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}

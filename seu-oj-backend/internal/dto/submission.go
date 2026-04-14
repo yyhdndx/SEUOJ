@@ -3,15 +3,18 @@ package dto
 import "time"
 
 type CreateSubmissionRequest struct {
-	ProblemID uint64 `json:"problem_id" binding:"required,min=1"`
-	Language  string `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
-	Code      string `json:"code" binding:"required"`
+	ProblemID uint64  `json:"problem_id" binding:"required,min=1"`
+	ContestID *uint64 `json:"contest_id"`
+	Language  string  `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
+	Code      string  `json:"code" binding:"required"`
 }
 
 type SubmissionListQuery struct {
 	Page      int    `form:"page" binding:"omitempty,min=1"`
 	PageSize  int    `form:"page_size" binding:"omitempty,min=1,max=100"`
+	UserID    uint64 `form:"user_id" binding:"omitempty,min=1"`
 	ProblemID uint64 `form:"problem_id" binding:"omitempty,min=1"`
+	ContestID uint64 `form:"contest_id" binding:"omitempty,min=1"`
 	Status    string `form:"status"`
 }
 
@@ -20,10 +23,16 @@ type CreateSubmissionResponse struct {
 	Status       string `json:"status"`
 }
 
+type RejudgeSubmissionResponse struct {
+	SubmissionID uint64 `json:"submission_id"`
+	Status       string `json:"status"`
+}
+
 type RunSubmissionRequest struct {
-	ProblemID uint64 `json:"problem_id" binding:"required,min=1"`
-	Language  string `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
-	Code      string `json:"code" binding:"required"`
+	ProblemID uint64  `json:"problem_id" binding:"required,min=1"`
+	ContestID *uint64 `json:"contest_id"`
+	Language  string  `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
+	Code      string  `json:"code" binding:"required"`
 }
 
 type RunSubmissionCaseResult struct {
@@ -46,7 +55,10 @@ type RunSubmissionResponse struct {
 
 type SubmissionListItem struct {
 	ID          uint64     `json:"id"`
+	UserID      uint64     `json:"user_id"`
 	ProblemID   uint64     `json:"problem_id"`
+	ContestID   *uint64    `json:"contest_id"`
+	IsPractice  bool       `json:"is_practice"`
 	Language    string     `json:"language"`
 	Status      string     `json:"status"`
 	PassedCount int        `json:"passed_count"`
@@ -67,6 +79,8 @@ type SubmissionDetailResponse struct {
 	ID          uint64                     `json:"id"`
 	UserID      uint64                     `json:"user_id"`
 	ProblemID   uint64                     `json:"problem_id"`
+	ContestID   *uint64                    `json:"contest_id"`
+	IsPractice  bool                       `json:"is_practice"`
 	Language    string                     `json:"language"`
 	Code        string                     `json:"code"`
 	Status      string                     `json:"status"`

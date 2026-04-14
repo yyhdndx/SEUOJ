@@ -1,0 +1,138 @@
+﻿@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFDF7
+  BorderColor #5A4A2D
+}
+
+actor 游客 as Guest
+actor 学生 as Student
+actor 教师 as Teacher
+actor 管理员 as Admin
+
+rectangle "SEU OJ 系统" {
+
+  package "公开访问" {
+    usecase "浏览题库" as UC_ProblemList
+    usecase "查看题目详情" as UC_ProblemDetail
+    usecase "查看题解" as UC_SolutionView
+    usecase "浏览比赛" as UC_ContestList
+    usecase "查看比赛详情/榜单" as UC_ContestDetail
+    usecase "查看公告" as UC_AnnouncementView
+    usecase "浏览论坛" as UC_ForumView
+    usecase "查看排行榜" as UC_RanklistView
+  }
+
+  package "用户与训练" {
+    usecase "注册/登录" as UC_Auth
+    usecase "维护个人资料" as UC_Profile
+    usecase "运行样例" as UC_Run
+    usecase "提交代码" as UC_Submit
+    usecase "查看我的提交" as UC_MySubmission
+    usecase "查看提交详情" as UC_SubmissionDetail
+  }
+
+  package "比赛" {
+    usecase "报名比赛" as UC_ContestRegister
+    usecase "查看比赛题目" as UC_ContestProblem
+    usecase "比赛环境下提交" as UC_ContestSubmit
+    usecase "查看比赛公告" as UC_ContestAnnouncement
+  }
+
+  package "教学" {
+    usecase "浏览题单" as UC_PlaylistView
+    usecase "加入班级" as UC_ClassJoin
+    usecase "查看班级信息" as UC_ClassView
+    usecase "查看作业/考试" as UC_AssignmentView
+    usecase "创建题单" as UC_PlaylistManage
+    usecase "创建班级" as UC_ClassCreate
+    usecase "管理班级成员" as UC_ClassMemberManage
+    usecase "发布作业/考试" as UC_AssignmentPublish
+    usecase "管理题解" as UC_SolutionManage
+  }
+
+  package "论坛与内容" {
+    usecase "发帖" as UC_ForumTopicCreate
+    usecase "回帖" as UC_ForumReplyCreate
+    usecase "编辑/删除本人内容" as UC_ForumSelfManage
+    usecase "论坛管理(置顶/锁帖/删帖)" as UC_ForumModerate
+  }
+
+  package "平台管理" {
+    usecase "管理题目" as UC_AdminProblem
+    usecase "管理比赛" as UC_AdminContest
+    usecase "管理用户" as UC_AdminUser
+    usecase "管理公告" as UC_AdminAnnouncement
+    usecase "查看/重判提交" as UC_AdminSubmission
+    usecase "查看全局统计" as UC_AdminStats
+  }
+}
+
+Guest --> UC_ProblemList
+Guest --> UC_ProblemDetail
+Guest --> UC_SolutionView
+Guest --> UC_ContestList
+Guest --> UC_ContestDetail
+Guest --> UC_AnnouncementView
+Guest --> UC_ForumView
+Guest --> UC_RanklistView
+
+Student --> UC_Auth
+Student --> UC_Profile
+Student --> UC_Run
+Student --> UC_Submit
+Student --> UC_MySubmission
+Student --> UC_SubmissionDetail
+Student --> UC_ContestRegister
+Student --> UC_ContestProblem
+Student --> UC_ContestSubmit
+Student --> UC_ContestAnnouncement
+Student --> UC_PlaylistView
+Student --> UC_ClassJoin
+Student --> UC_ClassView
+Student --> UC_AssignmentView
+Student --> UC_ForumTopicCreate
+Student --> UC_ForumReplyCreate
+Student --> UC_ForumSelfManage
+
+Teacher --> UC_Auth
+Teacher --> UC_Profile
+Teacher --> UC_Run
+Teacher --> UC_Submit
+Teacher --> UC_MySubmission
+Teacher --> UC_SubmissionDetail
+Teacher --> UC_PlaylistManage
+Teacher --> UC_ClassCreate
+Teacher --> UC_ClassMemberManage
+Teacher --> UC_AssignmentPublish
+Teacher --> UC_SolutionManage
+Teacher --> UC_ForumTopicCreate
+Teacher --> UC_ForumReplyCreate
+Teacher --> UC_ForumSelfManage
+Teacher --> UC_ForumModerate
+Teacher --> UC_ClassView
+Teacher --> UC_AssignmentView
+
+Admin --> UC_Auth
+Admin --> UC_Profile
+Admin --> UC_AdminProblem
+Admin --> UC_AdminContest
+Admin --> UC_AdminUser
+Admin --> UC_AdminAnnouncement
+Admin --> UC_AdminSubmission
+Admin --> UC_AdminStats
+Admin --> UC_ForumModerate
+Admin --> UC_SolutionManage
+
+UC_ContestSubmit ..> UC_Submit : <<extend>>
+UC_AssignmentView ..> UC_ProblemDetail : <<include>>
+UC_ContestProblem ..> UC_ProblemDetail : <<include>>
+UC_SolutionManage ..> UC_SolutionView : <<extend>>
+UC_ForumReplyCreate ..> UC_ForumView : <<extend>>
+UC_ForumSelfManage ..> UC_ForumView : <<extend>>
+UC_ForumModerate ..> UC_ForumView : <<extend>>
+
+@enduml

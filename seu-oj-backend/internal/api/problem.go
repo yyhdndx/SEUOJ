@@ -1,4 +1,4 @@
-package api
+﻿package api
 
 import (
 	"errors"
@@ -133,6 +133,168 @@ func (h *ProblemHandler) Detail(c *gin.Context) {
 	}
 
 	response.OK(c, problem)
+}
+
+func (h *ProblemHandler) Stats(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+
+	stats, err := h.problemService.GetProblemStats(id)
+	if err != nil {
+		if errors.Is(err, service.ErrProblemNotFound) {
+			response.Error(c, "problem not found")
+			return
+		}
+		response.Error(c, "query problem stats failed")
+		return
+	}
+
+	response.OK(c, stats)
+}
+
+func (h *ProblemHandler) SolutionList(c *gin.Context) {
+	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	items, err := h.problemService.ListProblemSolutions(problemID, false)
+	if err != nil {
+		if errors.Is(err, service.ErrProblemNotFound) {
+			response.Error(c, "problem not found")
+			return
+		}
+		response.Error(c, "query problem solutions failed")
+		return
+	}
+	response.OK(c, gin.H{"list": items})
+}
+
+func (h *ProblemHandler) TeacherSolutionList(c *gin.Context) {
+	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	items, err := h.problemService.ListProblemSolutions(problemID, true)
+	if err != nil {
+		if errors.Is(err, service.ErrProblemNotFound) {
+			response.Error(c, "problem not found")
+			return
+		}
+		response.Error(c, "query problem solutions failed")
+		return
+	}
+	response.OK(c, gin.H{"list": items})
+}
+
+func (h *ProblemHandler) CreateSolution(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	role, ok := getContextRole(c)
+	if !ok {
+		return
+	}
+	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	var req dto.CreateProblemSolutionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "invalid request parameters")
+		return
+	}
+	result, err := h.problemService.CreateProblemSolution(userID, role, problemID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrPermissionDenied):
+			response.Error(c, "teacher permission required")
+		case errors.Is(err, service.ErrProblemNotFound):
+			response.Error(c, "problem not found")
+		default:
+			response.Error(c, "create solution failed")
+		}
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *ProblemHandler) UpdateSolution(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	role, ok := getContextRole(c)
+	if !ok {
+		return
+	}
+	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	solutionID, err := strconv.ParseUint(c.Param("solution_id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid solution id")
+		return
+	}
+	var req dto.CreateProblemSolutionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "invalid request parameters")
+		return
+	}
+	result, err := h.problemService.UpdateProblemSolution(userID, role, problemID, solutionID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrPermissionDenied):
+			response.Error(c, "solution access denied")
+		case errors.Is(err, service.ErrSolutionNotFound):
+			response.Error(c, "solution not found")
+		default:
+			response.Error(c, "update solution failed")
+		}
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *ProblemHandler) DeleteSolution(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	role, ok := getContextRole(c)
+	if !ok {
+		return
+	}
+	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	solutionID, err := strconv.ParseUint(c.Param("solution_id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid solution id")
+		return
+	}
+	if err := h.problemService.DeleteProblemSolution(userID, role, problemID, solutionID); err != nil {
+		switch {
+		case errors.Is(err, service.ErrPermissionDenied):
+			response.Error(c, "solution access denied")
+		case errors.Is(err, service.ErrSolutionNotFound):
+			response.Error(c, "solution not found")
+		default:
+			response.Error(c, "delete solution failed")
+		}
+		return
+	}
+	response.OK(c, gin.H{"problem_id": problemID, "solution_id": solutionID})
 }
 
 func (h *ProblemHandler) AdminDetail(c *gin.Context) {

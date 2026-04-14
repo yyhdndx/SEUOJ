@@ -1,4 +1,4 @@
-package dto
+﻿package dto
 
 import "time"
 
@@ -92,4 +92,16 @@ type ProblemDetailResponse struct {
 	CreatedAt     time.Time                 `json:"created_at"`
 	UpdatedAt     time.Time                 `json:"updated_at"`
 	Testcases     []ProblemTestcaseResponse `json:"testcases"`
+	Solutions     []ProblemSolutionResponse `json:"solutions"`
 }
+
+type ProblemStatsResponse struct {
+	ProblemID            uint64      `json:"problem_id"`
+	SubmissionsTotal     int64       `json:"submissions_total"`
+	AcceptedSubmissions  int64       `json:"accepted_submissions"`
+	AcceptedUsers        int64       `json:"accepted_users"`
+	AcceptedRate         float64     `json:"accepted_rate"`
+	LanguageBreakdown    []CountItem `json:"language_breakdown"`
+}
+
+

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -14,12 +14,23 @@
         <span class="brand-note">Compact coding arena for SEU</span>
       </div>
       <nav class="topnav">
-        <a href="#/">Home</a>
-        <a href="#/problems">Problems</a>
-        <a href="#/submissions">Submissions</a>
-        <a href="#/admin/problems" id="admin-manage-link" style="display:none;">Manage Problems</a>
-        <a href="#/admin/problems/new" id="admin-link" style="display:none;">Create Problem</a>
-        <a href="#/auth">Account</a>
+        <div class="topnav-main">
+          <a href="#/">Home</a>
+          <a href="#/problems">Problems</a>
+          <a href="#/contests">Contests</a>
+          <a href="#/playlists">Playlists</a>
+          <a href="#/forum">Forum</a>
+        </div>
+        <details class="nav-menu">
+          <summary>More</summary>
+          <div class="nav-menu-panel">
+            <a href="#/rankings">Rankings</a>
+            <a href="#/announcements">Announcements</a>
+            <a href="#/submissions">Submissions</a>
+            <a href="#/classes" id="classes-link" style="display:none;">Classes</a>
+            <a href="#/profile" id="profile-link" style="display:none;">Profile</a>
+          </div>
+        </details>
       </nav>
       <div class="account-slot" id="account-slot"></div>
     </header>
@@ -31,5 +42,13 @@
   </div>
 
   <script src="./app.js"></script>
+  <script src="./js/general-pages.js"></script>
+  <script src="./js/problems.js"></script>
+  <script src="./js/submissions.js"></script>
+  <script src="./js/contests.js"></script>
+  <script src="./js/teaching.js"></script>
+  <script src="./js/admin.js"></script>
+  <script src="./js/forum.js"></script>
+  <script src="./js/bootstrap.js"></script>
 </body>
 </html>

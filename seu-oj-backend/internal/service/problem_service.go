@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"errors"
@@ -15,6 +15,7 @@ import (
 var (
 	ErrProblemNotFound  = errors.New("problem not found")
 	ErrPermissionDenied = errors.New("permission denied")
+	ErrSolutionNotFound = errors.New("solution not found")
 )
 
 type ProblemService struct {
@@ -167,8 +168,12 @@ func (s *ProblemService) GetProblemDetail(id uint64) (*dto.ProblemDetailResponse
 	if err != nil {
 		return nil, err
 	}
+	solutions, err := s.ListProblemSolutions(id, false)
+	if err != nil {
+		return nil, err
+	}
 
-	resp := toProblemDetailResponse(*problem, filterSampleTestcases(testcases))
+	resp := toProblemDetailResponse(*problem, filterSampleTestcases(testcases), solutions)
 	return &resp, nil
 }
 
@@ -189,8 +194,12 @@ func (s *ProblemService) GetAdminProblemDetail(ctxRole string, id uint64) (*dto.
 	if err != nil {
 		return nil, err
 	}
+	solutions, err := s.ListProblemSolutions(id, true)
+	if err != nil {
+		return nil, err
+	}
 
-	resp := toProblemDetailResponse(*problem, testcases)
+	resp := toProblemDetailResponse(*problem, testcases, solutions)
 	return &resp, nil
 }
 
@@ -255,11 +264,111 @@ func (s *ProblemService) DeleteProblem(ctxRole string, id uint64) error {
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("problem_id = ?", id).Delete(&model.ProblemSolution{}).Error; err != nil {
+			return err
+		}
 		return s.problemRepo.Delete(tx, id)
 	})
 }
 
-func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTestcase) dto.ProblemDetailResponse {
+func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate bool) ([]dto.ProblemSolutionResponse, error) {
+		if _, err := s.problemRepo.GetByID(problemID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, ErrProblemNotFound
+			}
+			return nil, err
+		}
+
+	query := s.db.Model(&model.ProblemSolution{}).Where("problem_id = ?", problemID)
+	if !includePrivate {
+		query = query.Where("visibility = ?", "public")
+	}
+	var items []model.ProblemSolution
+	if err := query.Order("id ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	result := make([]dto.ProblemSolutionResponse, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ProblemSolutionResponse{
+			ID: item.ID,
+			ProblemID: item.ProblemID,
+			Title: item.Title,
+			Content: item.Content,
+			Visibility: item.Visibility,
+			AuthorID: item.AuthorID,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (s *ProblemService) CreateProblemSolution(userID uint64, role string, problemID uint64, req dto.CreateProblemSolutionRequest) (*dto.ProblemSolutionResponse, error) {
+	if role != "admin" && role != "teacher" {
+		return nil, ErrPermissionDenied
+	}
+	if _, err := s.problemRepo.GetByID(problemID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProblemNotFound
+		}
+		return nil, err
+	}
+	solution := model.ProblemSolution{
+		ProblemID: problemID,
+		Title: strings.TrimSpace(req.Title),
+		Content: req.Content,
+		Visibility: req.Visibility,
+		AuthorID: userID,
+	}
+	if err := s.db.Create(&solution).Error; err != nil {
+		return nil, err
+	}
+	resp := dto.ProblemSolutionResponse{ID: solution.ID, ProblemID: solution.ProblemID, Title: solution.Title, Content: solution.Content, Visibility: solution.Visibility, AuthorID: solution.AuthorID, CreatedAt: solution.CreatedAt, UpdatedAt: solution.UpdatedAt}
+	return &resp, nil
+}
+
+func (s *ProblemService) UpdateProblemSolution(userID uint64, role string, problemID, solutionID uint64, req dto.CreateProblemSolutionRequest) (*dto.ProblemSolutionResponse, error) {
+	if role != "admin" && role != "teacher" {
+		return nil, ErrPermissionDenied
+	}
+	var solution model.ProblemSolution
+	if err := s.db.Where("id = ? AND problem_id = ?", solutionID, problemID).First(&solution).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSolutionNotFound
+		}
+		return nil, err
+	}
+	if role != "admin" && solution.AuthorID != userID {
+		return nil, ErrPermissionDenied
+	}
+	solution.Title = strings.TrimSpace(req.Title)
+	solution.Content = req.Content
+	solution.Visibility = req.Visibility
+	if err := s.db.Save(&solution).Error; err != nil {
+		return nil, err
+	}
+	resp := dto.ProblemSolutionResponse{ID: solution.ID, ProblemID: solution.ProblemID, Title: solution.Title, Content: solution.Content, Visibility: solution.Visibility, AuthorID: solution.AuthorID, CreatedAt: solution.CreatedAt, UpdatedAt: solution.UpdatedAt}
+	return &resp, nil
+}
+
+func (s *ProblemService) DeleteProblemSolution(userID uint64, role string, problemID, solutionID uint64) error {
+	if role != "admin" && role != "teacher" {
+		return ErrPermissionDenied
+	}
+	var solution model.ProblemSolution
+	if err := s.db.Where("id = ? AND problem_id = ?", solutionID, problemID).First(&solution).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrSolutionNotFound
+		}
+		return err
+	}
+	if role != "admin" && solution.AuthorID != userID {
+		return ErrPermissionDenied
+	}
+	return s.db.Delete(&solution).Error
+}
+
+func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTestcase, solutions []dto.ProblemSolutionResponse) dto.ProblemDetailResponse {
 	respTestcases := make([]dto.ProblemTestcaseResponse, 0, len(testcases))
 	for _, testcase := range testcases {
 		respTestcases = append(respTestcases, dto.ProblemTestcaseResponse{
@@ -292,6 +401,7 @@ func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTes
 		CreatedAt:     problem.CreatedAt,
 		UpdatedAt:     problem.UpdatedAt,
 		Testcases:     respTestcases,
+		Solutions:     solutions,
 	}
 }
 
@@ -303,4 +413,42 @@ func filterSampleTestcases(testcases []model.ProblemTestcase) []model.ProblemTes
 		}
 	}
 	return filtered
+}
+
+func (s *ProblemService) GetProblemStats(id uint64) (*dto.ProblemStatsResponse, error) {
+	problem, err := s.problemRepo.GetByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProblemNotFound
+		}
+		return nil, err
+	}
+	if !problem.Visible {
+		return nil, ErrProblemNotFound
+	}
+
+	resp := &dto.ProblemStatsResponse{ProblemID: id}
+
+	if err := s.db.Model(&model.Submission{}).Where("problem_id = ?", id).Count(&resp.SubmissionsTotal).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&model.Submission{}).Where("problem_id = ? AND status = ?", id, "Accepted").Count(&resp.AcceptedSubmissions).Error; err != nil {
+		return nil, err
+	}
+	if err := s.db.Model(&model.Submission{}).Distinct("user_id").Where("problem_id = ? AND status = ?", id, "Accepted").Count(&resp.AcceptedUsers).Error; err != nil {
+		return nil, err
+	}
+	if resp.SubmissionsTotal > 0 {
+		resp.AcceptedRate = float64(resp.AcceptedSubmissions) / float64(resp.SubmissionsTotal)
+	}
+	if err := s.db.Model(&model.Submission{}).
+		Select("language AS name, COUNT(*) AS count").
+		Where("problem_id = ?", id).
+		Group("language").
+		Order("count DESC").
+		Scan(&resp.LanguageBreakdown).Error; err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }

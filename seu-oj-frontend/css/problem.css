@@ -1,0 +1,427 @@
+﻿.problem-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+  gap: 18px;
+  align-items: stretch;
+  position: relative;
+}
+
+body.problem-fullscreen .problem-workbench {
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+}
+
+.problem-pane,
+.editor-pane {
+  min-height: 72vh;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+body.problem-fullscreen .problem-pane,
+body.problem-fullscreen .editor-pane {
+  min-height: 0;
+  border-radius: 0;
+  border-top: none;
+  border-bottom: none;
+  box-shadow: none;
+}
+
+body.problem-fullscreen .problem-pane,
+body.problem-fullscreen .editor-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(247, 241, 228, 0.9), rgba(255, 253, 248, 0.96));
+}
+
+.problem-workbench.resizable {
+  grid-template-columns: minmax(0, var(--problem-pane-width, 48%)) 12px minmax(420px, calc(100% - var(--problem-pane-width, 48%)));
+  gap: 0;
+  align-items: stretch;
+}
+
+.workbench-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  background: linear-gradient(180deg, rgba(206, 195, 171, 0.95), rgba(240, 233, 217, 0.95));
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  user-select: none;
+  position: relative;
+  min-width: 12px;
+  align-self: stretch;
+}
+
+.workbench-divider::before {
+  content: "";
+  width: 4px;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(104, 97, 79, 0.35);
+}
+
+.workbench-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  font-size: 0;
+}
+
+.editor-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.editor-meta .metric {
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #faf6ec;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft);
+}
+
+.pane-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pane-content {
+  padding: 18px;
+}
+
+.problem-pane .pane-content {
+  max-height: calc(72vh - 66px);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+body.problem-fullscreen .problem-pane .pane-content,
+body.problem-fullscreen .editor-pane .pane-content {
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+}
+
+body.problem-fullscreen .problem-pane .pane-content {
+  overflow: auto;
+}
+
+.editor-pane .pane-content {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 10px 4px;
+  background: linear-gradient(180deg, rgba(248, 245, 238, 0.95), rgba(255, 253, 248, 0.98));
+}
+
+.editor-form {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 4px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editor-form .text-area {
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: block;
+  background: #f5f1e8;
+  border: 1px solid #c7b894;
+  line-height: 1.55;
+  tab-size: 4;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(39, 28, 6, 0.04);
+  padding: 16px 18px;
+}
+
+.editor-toolbar,
+.editor-actions,
+.editor-topbar-left,
+.editor-topbar-right,
+.editor-footer-note,
+.submit-action-group,
+.submit-language-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.editor-actions {
+  gap: 6px;
+}
+
+.editor-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 248, 0.82);
+  border-radius: var(--radius-sm);
+}
+
+.editor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 12px;
+  color: var(--muted);
+  border-radius: 999px;
+}
+
+.editor-select {
+  width: auto;
+  min-width: 88px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--paper-soft);
+}
+
+.editor-surface {
+  display: block;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editor-footer-note {
+  justify-content: flex-end;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.editor-submit-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 0;
+  min-height: 18px;
+  border-top: 1px solid rgba(214, 204, 183, 0.28);
+}
+
+.submit-language-label {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.submit-language-select {
+  width: 140px;
+  min-width: 140px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.1;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.submit-compact-button {
+  min-width: 86px;
+  padding: 3px 14px;
+  font-size: 12px;
+  line-height: 1.1;
+  box-shadow: none;
+  border-radius: 3px;
+}
+
+.editor-bottom-stack {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 4px;
+  min-height: 0;
+}
+
+.run-result-panel {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(214, 204, 183, 0.32);
+  min-height: 80px;
+  overflow: auto;
+  position: relative;
+}
+
+.run-result-resizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.run-result-resizer::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 44px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(104, 97, 79, 0.35);
+}
+
+.run-result-head,
+.run-case-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.run-result-head {
+  margin-bottom: 6px;
+}
+
+.run-case-card + .run-case-card {
+  margin-top: 8px;
+}
+
+.run-case-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.run-result-pre {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: #f7f4ed;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.run-result-error {
+  margin-bottom: 6px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.problem-plain-pre,
+.problem-markdown-pre,
+.detail-block pre {
+  margin: 8px 0 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: #f7f4ed;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  border-radius: 8px;
+}
+
+.problem-markdown {
+  margin-top: 10px;
+  color: var(--ink);
+  line-height: 1.75;
+  font-size: 15px;
+}
+
+.problem-markdown.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.problem-markdown > :first-child {
+  margin-top: 0;
+}
+
+.problem-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.problem-markdown p,
+.problem-markdown ul,
+.problem-markdown ol,
+.problem-markdown blockquote,
+.problem-markdown pre {
+  margin: 0 0 14px;
+}
+
+.problem-markdown h2,
+.problem-markdown h3,
+.problem-markdown h4,
+.problem-markdown h5,
+.problem-markdown h6,
+.problem-markdown h7 {
+  margin: 18px 0 10px;
+  color: var(--accent-deep);
+  line-height: 1.3;
+}
+
+.problem-markdown ul,
+.problem-markdown ol {
+  padding-left: 24px;
+}
+
+.problem-markdown li + li {
+  margin-top: 6px;
+}
+
+.problem-markdown blockquote {
+  padding: 10px 14px;
+  border-left: 4px solid rgba(45, 91, 159, 0.35);
+  background: rgba(45, 91, 159, 0.06);
+  color: var(--muted);
+}
+
+.problem-markdown code {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  background: #f7f4ed;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 0.92em;
+  border-radius: 4px;
+}
+
+.problem-markdown a {
+  color: var(--accent-deep);
+  text-decoration: underline;
+}
+
+@media (max-width: 960px) {
+  .problem-workbench,
+  .problem-workbench.resizable,
+  .editor-meta {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,26 @@
+﻿.data-table tr.row-current-user {
+  background: rgba(45, 91, 159, 0.08);
+}
+
+.contest-rank-cell {
+  white-space: nowrap;
+}
+
+.contest-rank-solved {
+  background: rgba(47, 109, 63, 0.08);
+}
+
+.contest-rank-tried {
+  background: rgba(170, 45, 36, 0.06);
+}
+
+.contest-rank-frozen {
+  background: rgba(45, 91, 159, 0.07);
+}
+
+.contest-announce-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
