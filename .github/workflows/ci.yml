@@ -1,0 +1,92 @@
+﻿name: CI
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-check:
+    name: Frontend Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check frontend JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done < <(find seu-oj-frontend -type f -name '*.js' -print0)
+
+  backend-check:
+    name: Backend Build And Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: seu-oj-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: seu-oj-backend/go.mod
+          cache-dependency-path: seu-oj-backend/go.sum
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Build backend
+        run: go build ./...
+
+      - name: Run backend tests
+        run: go test ./...
+
+  package:
+    name: Package Build Artifacts
+    runs-on: ubuntu-latest
+    needs: [frontend-check, backend-check]
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: seu-oj-backend/go.mod
+          cache-dependency-path: seu-oj-backend/go.sum
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd seu-oj-backend
+          GOOS=linux GOARCH=amd64 go build -o ../build/seu-oj-web-linux-amd64 .
+          GOOS=linux GOARCH=amd64 go build -o ../build/judge-worker-linux-amd64 ./cmd/judge-worker
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seu-oj-build-${{ github.sha }}
+          path: build/
+          if-no-files-found: error
