@@ -3,10 +3,10 @@ server:
   port: "8080"
 
 database:
-  host: "127.0.0.1"
+  host: "10.208.107.38"
   port: "3306"
-  user: "root"
-  password: "woziji521521"
+  user: "remote_user"
+  password: "123456"
   name: "seuoj"
 
 redis:
