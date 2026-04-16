@@ -1,999 +1,802 @@
-﻿// Admin domain pages and helpers
-function renderAdminProblemCreate() {
-  return renderAdminProblemForm();
-}
-
-async function renderAdminProblemEdit(id) {
-  return renderAdminProblemForm(id);
-}
-
-async function renderAdminProblemDetail(id) {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before viewing admin problem detail.</p></div>`;
-    return;
-  }
-  if (!state.user || state.user.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access full problem detail.</p></div>`;
-    return;
-  }
-
-  app.innerHTML = `<div class="detail-card"><p>Loading admin problem detail...</p></div>`;
-  try {
-    const problem = await apiFetch(`/admin/problems/${id}`, { method: "GET" });
-    const samples = (problem.testcases || []).filter((item) => item.case_type === "sample");
-    const hiddenCases = (problem.testcases || []).filter((item) => item.case_type === "hidden");
-
-    app.innerHTML = `
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">${escapeHTML(problem.title)}</h1>
-          <p class="view-subtitle">Admin preview for #${problem.id} / ${escapeHTML(problem.display_id || "-")}</p>
-        </div>
-        <div style="display:flex; gap:10px;">
-          <a class="ghost-button" href="#/admin/problems">Back to Manage</a>
-          <a class="ghost-button" href="#/teacher/problems/${problem.id}/solutions">Solutions</a>
-          <a class="primary-button" href="#/admin/problems/${problem.id}/edit">Edit</a>
-        </div>
-      </div>
-      <section class="detail-grid">
-        <article class="detail-card">
-          ${renderProblemBlock("Description", problem.description)}
-          ${renderProblemBlock("Input", problem.input_desc)}
-          ${renderProblemBlock("Output", problem.output_desc)}
-          ${renderProblemCodeBlock("Sample Input", problem.sample_input)}
-          ${renderProblemCodeBlock("Sample Output", problem.sample_output)}
-          ${renderProblemBlock("Hint", problem.hint)}
-        </article>
-        <aside class="detail-card">
-          <h3>Meta</h3>
-          <div class="metric-list">
-            <div class="metric"><span class="metric-label">Visible</span><span class="metric-value"><span class="status-pill ${problem.visible ? "status-accepted" : "status-hidden"}">${problem.visible ? "Visible" : "Hidden"}</span></span></div>
-            <div class="metric"><span class="metric-label">Created By</span><span class="metric-value">${problem.created_by}</span></div>
-            <div class="metric"><span class="metric-label">Judge Mode</span><span class="metric-value"><span class="status-pill status-neutral">${escapeHTML(problem.judge_mode)}</span></span></div>
-            <div class="metric"><span class="metric-label">Time Limit</span><span class="metric-value">${problem.time_limit_ms} ms</span></div>
-            <div class="metric"><span class="metric-label">Memory Limit</span><span class="metric-value">${problem.memory_limit_mb} MB</span></div>
-            <div class="metric"><span class="metric-label">Created At</span><span class="metric-value mono">${escapeHTML(problem.created_at)}</span></div>
-            <div class="metric"><span class="metric-label">Updated At</span><span class="metric-value mono">${escapeHTML(problem.updated_at)}</span></div>
-          </div>
-        </aside>
-      </section>
-      <section class="detail-card" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>Sample Testcases</h3>
-            <p class="view-subtitle">Visible to users.</p>
-          </div>
-          <div class="mono">${samples.length} case(s)</div>
-        </div>
-        ${samples.length ? renderAdminCaseTable(samples) : "<p>No sample testcase.</p>"}
-      </section>
-      <section class="detail-card" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>Hidden Testcases</h3>
-            <p class="view-subtitle">Judge-only data, admin visible.</p>
-          </div>
-          <div class="mono">${hiddenCases.length} case(s)</div>
-        </div>
-        ${hiddenCases.length ? renderAdminCaseTable(hiddenCases) : "<p>No hidden testcase.</p>"}
-      </section>
-    `;
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load admin problem detail failed: ${escapeHTML(err.message)}</p></div>`;
-  }
-}
-
-async function renderAdminProblemForm(problemID = null) {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before creating problems.</p></div>`;
-    return;
-  }
-  if (!state.user || state.user.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access problem creation.</p></div>`;
-    return;
-  }
-
-  let initialProblem = null;
-  if (problemID) {
-    app.innerHTML = `<div class="detail-card"><p>Loading problem editor...</p></div>`;
-    try {
-      initialProblem = await apiFetch(`/admin/problems/${problemID}`, { method: "GET" });
-    } catch (err) {
-      app.innerHTML = `<div class="detail-card"><p>Load admin problem failed: ${escapeHTML(err.message)}</p></div>`;
-      return;
-    }
-  }
-
-  const sampleCasesInitial = initialProblem?.testcases?.filter((item) => item.case_type === "sample") || [];
-  const hiddenCasesInitial = initialProblem?.testcases?.filter((item) => item.case_type === "hidden") || [];
-
-  app.innerHTML = `
-    <div class="view-header">
-      <div>
-        <h1 class="view-title">${problemID ? "Edit Problem" : "Create Problem"}</h1>
-        <p class="view-subtitle">${problemID ? "Update statement and testcase set." : "Minimal admin page for adding one problem and core testcases."}</p>
-      </div>
-      <div>
-        <a class="ghost-button" href="#/admin/problems">Back to Manage</a>
-      </div>
-    </div>
-    <form id="admin-problem-form" class="grid-form">
-      <div>
-        <label class="field-label">Display ID</label>
-        <input class="text-input" name="display_id" value="${escapeHTML(initialProblem?.display_id || "1000")}" required />
-      </div>
-      <div>
-        <label class="field-label">Title</label>
-        <input class="text-input" name="title" value="${escapeHTML(initialProblem?.title || "")}" required />
-      </div>
-      <div class="full">
-        <label class="field-label">Description</label>
-        <textarea class="text-area" name="description" required>${escapeHTML(initialProblem?.description || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Input Description</label>
-        <textarea class="text-area" name="input_desc">${escapeHTML(initialProblem?.input_desc || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Output Description</label>
-        <textarea class="text-area" name="output_desc">${escapeHTML(initialProblem?.output_desc || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Sample Input</label>
-        <textarea class="text-area" name="sample_input">${escapeHTML(initialProblem?.sample_input || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Sample Output</label>
-        <textarea class="text-area" name="sample_output">${escapeHTML(initialProblem?.sample_output || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Hint</label>
-        <textarea class="text-area" name="hint">${escapeHTML(initialProblem?.hint || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Source</label>
-        <input class="text-input" name="source" value="${escapeHTML(initialProblem?.source || "SEU OJ")}" />
-      </div>
-      <div>
-        <label class="field-label">Judge Mode</label>
-        <select class="select-input" name="judge_mode">
-          <option value="standard" ${initialProblem?.judge_mode === "standard" || !initialProblem ? "selected" : ""}>standard</option>
-        </select>
-      </div>
-      <div>
-        <label class="field-label">Time Limit (ms)</label>
-        <input class="text-input" name="time_limit_ms" type="number" value="${escapeHTML(initialProblem?.time_limit_ms || 1000)}" min="1" required />
-      </div>
-      <div>
-        <label class="field-label">Memory Limit (MB)</label>
-        <input class="text-input" name="memory_limit_mb" type="number" value="${escapeHTML(initialProblem?.memory_limit_mb || 128)}" min="1" required />
-      </div>
-      <div class="full">
-        <label class="field-label"><input type="checkbox" name="visible" ${initialProblem?.visible ?? true ? "checked" : ""} /> Visible</label>
-      </div>
-      <div class="full detail-card">
-        <div class="view-header" style="margin-bottom:12px;">
-          <div>
-            <h3>Sample Testcases</h3>
-            <p class="view-subtitle">Shown to users on the problem page.</p>
-          </div>
-          <button class="ghost-button" type="button" id="add-sample-case">Add Sample</button>
-        </div>
-        <div id="sample-cases"></div>
-      </div>
-      <div class="full detail-card">
-        <div class="view-header" style="margin-bottom:12px;">
-          <div>
-            <h3>Hidden Testcases</h3>
-            <p class="view-subtitle">Used by judge worker only.</p>
-          </div>
-          <button class="ghost-button" type="button" id="add-hidden-case">Add Hidden</button>
-        </div>
-        <div id="hidden-cases"></div>
-      </div>
-      <div class="full">
-        <button class="primary-button" type="submit">${problemID ? "Update Problem" : "Create Problem"}</button>
-      </div>
-    </form>
-  `;
-
-  const sampleCases = document.getElementById("sample-cases");
-  const hiddenCases = document.getElementById("hidden-cases");
-  let sampleIndex = 0;
-  let hiddenIndex = 0;
-
-  const addCaseCard = (container, type, index, defaults = {}) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "detail-card";
-    wrapper.style.marginBottom = "12px";
-    wrapper.dataset.caseType = type;
-    wrapper.dataset.caseIndex = String(index);
-    wrapper.innerHTML = `
-      <div class="view-header" style="margin-bottom:12px;">
-        <div>
-          <h3>${type === "sample" ? "Sample" : "Hidden"} #${index + 1}</h3>
-          <p class="view-subtitle">${type === "sample" ? "Visible testcase" : "Judge-only testcase"}</p>
-        </div>
-        <button class="ghost-button remove-case" type="button">Remove</button>
-      </div>
-      <div class="grid-form">
-        <div>
-          <label class="field-label">Input</label>
-          <textarea class="text-area" data-field="input">${escapeHTML(defaults.input || "")}</textarea>
-        </div>
-        <div>
-          <label class="field-label">Output</label>
-          <textarea class="text-area" data-field="output">${escapeHTML(defaults.output || "")}</textarea>
-        </div>
-        <div>
-          <label class="field-label">Score</label>
-          <input class="text-input" data-field="score" type="number" min="0" value="${escapeHTML(defaults.score ?? (type === "hidden" ? 100 : 0))}" />
-        </div>
-        <div>
-          <label class="field-label">Sort Order</label>
-          <input class="text-input" data-field="sort_order" type="number" min="1" value="${escapeHTML(defaults.sort_order ?? (index + 1))}" />
-        </div>
-        <div class="full">
-          <label class="field-label"><input data-field="is_active" type="checkbox" ${defaults.is_active ?? true ? "checked" : ""} /> Active</label>
-        </div>
-      </div>
-    `;
-    wrapper.querySelector(".remove-case").addEventListener("click", () => {
-      wrapper.remove();
-      renumberCases(container, type);
-    });
-    container.appendChild(wrapper);
-    renumberCases(container, type);
-  };
-
-  const renumberCases = (container, type) => {
-    [...container.children].forEach((card, idx) => {
-      card.dataset.caseIndex = String(idx);
-      const title = card.querySelector("h3");
-      if (title) {
-        title.textContent = `${type === "sample" ? "Sample" : "Hidden"} #${idx + 1}`;
-      }
-    });
-  };
-
-  document.getElementById("add-sample-case").addEventListener("click", () => {
-    addCaseCard(sampleCases, "sample", sampleIndex++);
-  });
-  document.getElementById("add-hidden-case").addEventListener("click", () => {
-    addCaseCard(hiddenCases, "hidden", hiddenIndex++);
-  });
-
-  if (sampleCasesInitial.length) {
-    sampleCasesInitial.forEach((item) => addCaseCard(sampleCases, "sample", sampleIndex++, {
-      input: item.input_data,
-      output: item.output_data,
-      score: item.score,
-      sort_order: item.sort_order,
-      is_active: item.is_active,
-    }));
-  } else {
-    addCaseCard(sampleCases, "sample", sampleIndex++, { input: "1 2", output: "3", score: 0, sort_order: 1, is_active: true });
-  }
-
-  if (hiddenCasesInitial.length) {
-    hiddenCasesInitial.forEach((item) => addCaseCard(hiddenCases, "hidden", hiddenIndex++, {
-      input: item.input_data,
-      output: item.output_data,
-      score: item.score,
-      sort_order: item.sort_order,
-      is_active: item.is_active,
-    }));
-  } else {
-    addCaseCard(hiddenCases, "hidden", hiddenIndex++, { input: "5 7", output: "12", score: 100, sort_order: 2, is_active: true });
-  }
-
-  document.getElementById("admin-problem-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-
-    const testcases = [];
-    [...sampleCases.children].forEach((card, index) => {
-      const input = card.querySelector('[data-field="input"]').value;
-      const output = card.querySelector('[data-field="output"]').value;
-      const score = Number(card.querySelector('[data-field="score"]').value || 0);
-      const sortOrder = Number(card.querySelector('[data-field="sort_order"]').value || (index + 1));
-      const isActive = card.querySelector('[data-field="is_active"]').checked;
-      if (input.trim() || output.trim()) {
-        testcases.push({
-          case_type: "sample",
-          input_data: input,
-          output_data: output,
-          score,
-          sort_order: sortOrder,
-          is_active: isActive,
-        });
-      }
-    });
-
-    [...hiddenCases.children].forEach((card, index) => {
-      const input = card.querySelector('[data-field="input"]').value;
-      const output = card.querySelector('[data-field="output"]').value;
-      const score = Number(card.querySelector('[data-field="score"]').value || 100);
-      const sortOrder = Number(card.querySelector('[data-field="sort_order"]').value || (sampleCases.children.length + index + 1));
-      const isActive = card.querySelector('[data-field="is_active"]').checked;
-      if (input.trim() && output.trim()) {
-        testcases.push({
-          case_type: "hidden",
-          input_data: input,
-          output_data: output,
-          score,
-          sort_order: sortOrder,
-          is_active: isActive,
-        });
-      }
-    });
-
-    if (!testcases.some((item) => item.case_type === "hidden")) {
-      setFlash("At least one hidden testcase is required", true);
-      return;
-    }
-
-    const payload = {
-      display_id: (form.get("display_id") || "").toString(),
-      title: (form.get("title") || "").toString(),
-      description: (form.get("description") || "").toString(),
-      input_desc: (form.get("input_desc") || "").toString(),
-      output_desc: (form.get("output_desc") || "").toString(),
-      sample_input: (form.get("sample_input") || "").toString(),
-      sample_output: (form.get("sample_output") || "").toString(),
-      hint: (form.get("hint") || "").toString(),
-      source: (form.get("source") || "").toString(),
-      judge_mode: (form.get("judge_mode") || "").toString(),
-      time_limit_ms: Number(form.get("time_limit_ms") || 1000),
-      memory_limit_mb: Number(form.get("memory_limit_mb") || 128),
-      visible: form.get("visible") === "on",
-      testcases,
-    };
-
-    try {
-      const result = await apiFetch(problemID ? `/admin/problems/${problemID}` : "/admin/problems", {
-        method: problemID ? "PUT" : "POST",
-        body: JSON.stringify(payload),
-      });
-      setFlash(`Problem ${problemID ? "updated" : "created"}: #${result.problem_id}`, false);
-      location.hash = `#/problems/${result.problem_id}`;
-    } catch (err) {
-      setFlash(err.message, true);
-    }
-  });
-}
-
-async function renderAdminProblems() {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before managing problems.</p></div>`;
-    return;
-  }
-  if (!state.user || state.user.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access problem management.</p></div>`;
-    return;
-  }
-
-  app.innerHTML = `<div class="detail-card"><p>Loading admin problems...</p></div>`;
+﻿// Problem domain pages and helpers
+async function renderProblems() {
+  app.innerHTML = `<div class="detail-card"><p>Loading problems...</p></div>`;
   try {
     const queryString = getCurrentHashPath().split("?")[1] || "";
-    const params = new URLSearchParams(queryString);
-    const keyword = params.get("keyword") || "";
-    const includeHidden = params.get("include_hidden") === "true";
-    const page = params.get("page") || "1";
-    const pageSize = params.get("page_size") || "100";
-
-    const query = new URLSearchParams({
-      page,
-      page_size: pageSize,
-      include_hidden: String(includeHidden),
+    const keyword = new URLSearchParams(queryString).get("keyword") || "";
+    const data = await apiFetch(`/problems?page=1&page_size=50${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ""}`, {
+      method: "GET",
     });
-    if (keyword) {
-      query.set("keyword", keyword);
-    }
+    state.problems = data.list || [];
+    state.problemTitleMap = Object.fromEntries(state.problems.map((item) => [item.id, item.title]));
+    const myProblemStatusMap = state.token ? await loadProblemStatusMap() : {};
 
-    const data = await apiFetch(`/admin/problems?${query.toString()}`, { method: "GET" });
-    const list = data.list || [];
     app.innerHTML = `
       <div class="view-header">
         <div>
-          <h1 class="view-title">Manage Problems</h1>
-          <p class="view-subtitle">Current lightweight admin console. Create new problems and inspect existing visible ones.</p>
+          <h1 class="view-title">Problemset</h1>
+          <p class="view-subtitle">Compact listing with fast scan and direct entry to solving.</p>
         </div>
-        <div>
-          <a class="primary-button" href="#/admin/problems/new">New Problem</a>
-        </div>
+        <form id="problem-search" class="inline-form" style="grid-template-columns: 1fr auto;">
+          <input class="text-input" name="keyword" value="${escapeHTML(keyword)}" placeholder="Search by title" />
+          <button class="ghost-button" type="submit">Search</button>
+        </form>
       </div>
-      <form id="admin-problem-filters" class="toolbar">
-        <div>
-          <label class="field-label">Keyword</label>
-          <input class="text-input" name="keyword" value="${escapeHTML(keyword)}" placeholder="Search title" />
-        </div>
-        <div>
-          <label class="field-label">Include Hidden</label>
-          <select class="select-input" name="include_hidden">
-            <option value="false" ${!includeHidden ? "selected" : ""}>Visible only</option>
-            <option value="true" ${includeHidden ? "selected" : ""}>Visible + Hidden</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label">Page</label>
-          <input class="text-input" name="page" type="number" min="1" value="${escapeHTML(page)}" />
-        </div>
-        <div>
-          <label class="field-label">Page Size</label>
-          <input class="text-input" name="page_size" type="number" min="1" max="100" value="${escapeHTML(pageSize)}" />
-        </div>
-        <div class="full" style="display:flex; gap:10px; align-items:center;">
-          <button class="ghost-button" type="submit">Apply Filters</button>
-          <button class="ghost-button" type="button" id="clear-admin-problem-filters">Clear</button>
-        </div>
-      </form>
       <table class="data-table">
         <thead>
           <tr>
             <th>ID</th>
             <th>Display</th>
             <th>Title</th>
+            <th>My Status</th>
             <th>Mode</th>
-            <th>Visible</th>
+            <th>Time</th>
+            <th>Memory</th>
             <th>Created</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${list.map((item) => `
+          ${state.problems.map((item) => `
             <tr>
               <td>${item.id}</td>
               <td class="mono">${escapeHTML(item.display_id || "-")}</td>
-              <td>${escapeHTML(item.title)}</td>
-              <td><span class="status-pill status-neutral">${escapeHTML(item.judge_mode)}</span></td>
-              <td><span class="status-pill ${item.visible ? "status-accepted" : "status-hidden"}">${item.visible ? "Visible" : "Hidden"}</span></td>
+              <td><a class="table-link" href="#/problems/${item.id}">${escapeHTML(item.title)}</a></td>
+              <td>${renderProblemStatusPill(myProblemStatusMap[item.id])}</td>
+              <td>${escapeHTML(item.judge_mode)}</td>
+              <td>${item.time_limit_ms} ms</td>
+              <td>${item.memory_limit_mb} MB</td>
               <td class="mono">${escapeHTML(item.created_at)}</td>
-              <td>
-                <a class="table-link" href="#/admin/problems/${item.id}">View</a>
-                <span class="mono"> | </span>
-                <a class="table-link" href="#/admin/problems/${item.id}/edit">Edit</a>
-                <span class="mono"> | </span>
-                <button class="link-button admin-delete-problem" data-problem-id="${item.id}">Delete</button>
-              </td>
             </tr>
           `).join("")}
         </tbody>
       </table>
-      <div class="detail-card" style="margin-top:16px;">
-        <h3>Note</h3>
-        <p>This page now uses admin APIs. You can filter by title, include hidden problems, and jump directly to edit/delete actions.</p>
-      </div>
     `;
 
-    document.getElementById("admin-problem-filters").addEventListener("submit", (event) => {
+    document.getElementById("problem-search").addEventListener("submit", (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const next = new URLSearchParams();
       const nextKeyword = (form.get("keyword") || "").toString().trim();
-      const nextIncludeHidden = (form.get("include_hidden") || "false").toString();
-      const nextPage = (form.get("page") || "1").toString().trim() || "1";
-      const nextPageSize = (form.get("page_size") || "100").toString().trim() || "100";
-
-      next.set("page", nextPage);
-      next.set("page_size", nextPageSize);
-      next.set("include_hidden", nextIncludeHidden);
-      if (nextKeyword) {
-        next.set("keyword", nextKeyword);
-      }
-
-      location.hash = `#/admin/problems?${next.toString()}`;
-    });
-
-    document.getElementById("clear-admin-problem-filters").addEventListener("click", () => {
-      location.hash = "#/admin/problems";
-    });
-
-    document.querySelectorAll(".admin-delete-problem").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const id = button.dataset.problemId;
-        const confirmed = window.confirm(`Delete problem #${id}? This will also remove its testcases.`);
-        if (!confirmed) {
-          return;
-        }
-
-        try {
-          await apiFetch(`/admin/problems/${id}`, { method: "DELETE" });
-          setFlash(`Problem #${id} deleted`, false);
-          await renderAdminProblems();
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
+      location.hash = nextKeyword ? `#/problems?keyword=${encodeURIComponent(nextKeyword)}` : "#/problems";
     });
   } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load admin problems failed: ${escapeHTML(err.message)}</p></div>`;
+    app.innerHTML = `<div class="detail-card"><p>Load problems failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
 
-function renderAdminCaseTable(list) {
-  return `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Type</th>
-          <th>Input</th>
-          <th>Output</th>
-          <th>Score</th>
-          <th>Order</th>
-          <th>Active</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${list.map((item) => `
-          <tr>
-            <td>${item.id}</td>
-            <td>${escapeHTML(item.case_type)}</td>
-            <td><pre style="margin:0; white-space:pre-wrap;">${escapeHTML(item.input_data || "")}</pre></td>
-            <td><pre style="margin:0; white-space:pre-wrap;">${escapeHTML(item.output_data || "")}</pre></td>
-            <td>${item.score}</td>
-            <td>${item.sort_order}</td>
-            <td>${item.is_active ? "Yes" : "No"}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-}
-
-
-async function renderAdminSubmissions() {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before managing submissions.</p></div>`;
-    return;
-  }
-  if (!state.user || state.user.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access submission management.</p></div>`;
-    return;
-  }
-
-  app.innerHTML = `<div class="detail-card"><p>Loading admin submissions...</p></div>`;
+async function renderProblemDetail(id) {
+  app.innerHTML = `<div class="detail-card"><p>Loading problem...</p></div>`;
   try {
-    const queryString = getCurrentHashPath().split("?")[1] || "";
-    const params = new URLSearchParams(queryString);
-    const page = params.get("page") || "1";
-    const pageSize = params.get("page_size") || "20";
-    const userID = params.get("user_id") || "";
-    const problemID = params.get("problem_id") || "";
-    const contestID = params.get("contest_id") || "";
-    const status = params.get("status") || "";
-
-    const query = new URLSearchParams({ page, page_size: pageSize });
-    if (userID) query.set("user_id", userID);
-    if (problemID) query.set("problem_id", problemID);
-    if (contestID) query.set("contest_id", contestID);
-    if (status) query.set("status", status);
-
-    const [adminStats, data] = await Promise.all([
-      apiFetch("/stats/admin", { method: "GET" }),
-      apiFetch(`/admin/submissions?${query.toString()}`, { method: "GET" }),
+    const [problem, problemStats] = await Promise.all([
+      apiFetch(`/problems/${id}`, { method: "GET" }),
+      apiFetch(`/problems/${id}/stats`, { method: "GET" }).catch(() => null),
     ]);
+    state.problemDetail = problem;
+    if (!state.runResult || state.runResult.problemID !== problem.id || state.runResult.contestID) {
+      state.runResult = null;
+    }
+    const draft = readSubmissionDraft(problem.id);
+    const selectedLanguage = draft?.language || "cpp";
+    const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
+    const sampleCases = Array.isArray(problem.testcases)
+      ? problem.testcases.filter((item) => item.case_type === "sample")
+      : [];
+    const recentSubmissions = state.token ? await loadRecentProblemSubmissions(problem.id) : [];
+    const currentTab = state.problemDetailTab || "description";
+    const difficulty = getProblemDifficulty(problem);
 
-    const list = data.list || [];
     app.innerHTML = `
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Manage Submissions</h1>
-          <p class="view-subtitle">Observe queue pressure, filter submissions, inspect contest-tagged runs, and trigger rejudge when needed.</p>
-        </div>
-      </div>
-      <section class="detail-card">
-        <div class="verdict-summary-grid">
-          <div class="verdict-summary-card"><span class="status-pill status-pending">Queue</span><strong>${adminStats.queue_length}</strong></div>
-          <div class="verdict-summary-card"><span class="status-pill status-neutral">Submissions</span><strong>${adminStats.submissions_total}</strong></div>
-          <div class="verdict-summary-card"><span class="status-pill status-pending">Pending / Running</span><strong>${adminStats.pending_submissions + adminStats.running_submissions}</strong></div>
-          <div class="verdict-summary-card"><span class="status-pill status-error">System Errors</span><strong>${adminStats.system_errors}</strong></div>
-        </div>
-      </section>
-      <form id="admin-submission-filters" class="toolbar" style="margin-top:18px;">
-        <div>
-          <label class="field-label">User ID</label>
-          <input class="text-input" name="user_id" value="${escapeHTML(userID)}" />
-        </div>
-        <div>
-          <label class="field-label">Problem ID</label>
-          <input class="text-input" name="problem_id" value="${escapeHTML(problemID)}" />
-        </div>
-        <div>
-          <label class="field-label">Contest ID</label>
-          <input class="text-input" name="contest_id" value="${escapeHTML(contestID)}" placeholder="optional" />
-        </div>
-        <div>
-          <label class="field-label">Status</label>
-          <input class="text-input" name="status" value="${escapeHTML(status)}" placeholder="Accepted / Pending ..." />
-        </div>
-        <div>
-          <label class="field-label">Page</label>
-          <input class="text-input" name="page" type="number" min="1" value="${escapeHTML(page)}" />
-        </div>
-        <div>
-          <label class="field-label">Page Size</label>
-          <input class="text-input" name="page_size" type="number" min="1" max="100" value="${escapeHTML(pageSize)}" />
-        </div>
-        <div class="full" style="display:flex; gap:10px; align-items:center;">
-          <button class="ghost-button" type="submit">Apply Filters</button>
-          <button class="ghost-button" type="button" id="clear-admin-submission-filters">Clear</button>
-        </div>
-      </form>
-      <section class="detail-card" style="margin-top:18px;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>User</th>
-              <th>Problem</th>
-              <th>Contest</th>
-              <th>Lang</th>
-              <th>Status</th>
-              <th>Passed</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map((item) => `
-              <tr>
-                <td>${item.id}</td>
-                <td>${item.user_id}</td>
-                <td>${item.problem_id}</td>
-                <td>${item.contest_id ? `<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><a class="table-link" href="#/contests/${item.contest_id}">${item.contest_id}</a>${renderContestModeBadge(item)}</div>` : "-"}</td>
-                <td>${escapeHTML(item.language)}</td>
-                <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
-                <td>${item.passed_count}/${item.total_count}</td>
-                <td class="mono">${escapeHTML(item.created_at)}</td>
-                <td>
-                  <a class="table-link" href="#/submissions/${item.id}">View</a>
-                  <span class="mono"> | </span>
-                  <button class="link-button admin-rejudge-btn" data-submission-id="${item.id}">Rejudge</button>
-                </td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </section>
-      <section class="detail-grid" style="margin-top:18px;">
-        <article class="detail-card">
-          <h3>Status Breakdown</h3>
-          ${renderCountTable(adminStats.status_breakdown || [], "Status", "Count")}
-        </article>
-        <article class="detail-card">
-          <h3>Inventory</h3>
-          <div class="metric-list">
-            <div class="metric"><span class="metric-label">Users</span><span class="metric-value">${adminStats.users_total}</span></div>
-            <div class="metric"><span class="metric-label">Problems</span><span class="metric-value">${adminStats.problems_total}</span></div>
-            <div class="metric"><span class="metric-label">Hidden Problems</span><span class="metric-value">${adminStats.hidden_problems}</span></div>
+      <section class="problem-workbench resizable" id="problem-workbench" style="--problem-pane-width:${state.workbenchLeftWidth}%;">
+        <article class="problem-pane">
+          <div class="pane-header">
+            <div class="problem-heading">
+              <div class="problem-heading-meta">
+                <span class="problem-display-id">${escapeHTML(problem.display_id || `Problem ${problem.id}`)}</span>
+                <span class="problem-meta-separator" aria-hidden="true"></span>
+                <span>${escapeHTML(problem.judge_mode || "Standard")}</span>
+              </div>
+              <h1 class="pane-title problem-title">${escapeHTML(problem.title)}</h1>
+              <div class="problem-meta-row">
+                <span class="problem-meta-chip">${escapeHTML(difficulty.label)}</span>
+                <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
+                <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
+              </div>
+            </div>
+          </div>
+          <div class="pane-content">
+            <div class="problem-tabs" role="tablist" aria-label="Problem sections">
+              ${renderProblemTabButton("description", "Description", currentTab)}
+              ${renderProblemTabButton("solutions", "Solutions", currentTab)}
+              ${renderProblemTabButton("submissions", "Submission History", currentTab)}
+            </div>
+            <section class="problem-tab-panel ${currentTab === "description" ? "is-active" : ""}" data-problem-panel="description" role="tabpanel">
+              ${renderProblemBlock("", problem.description)}
+              ${renderProblemBlock("Input", problem.input_desc)}
+              ${renderProblemBlock("Output", problem.output_desc)}
+              ${renderProblemCodeBlock("Sample Input", problem.sample_input)}
+              ${renderProblemCodeBlock("Sample Output", problem.sample_output)}
+              ${sampleCases.length ? `
+                <div class="detail-block">
+                  <h3>Sample Testcases</h3>
+                  ${renderSampleCaseList(sampleCases)}
+                </div>
+              ` : ""}
+              ${renderProblemBlock("Source / Hint", `${problem.source || ""}\n${problem.hint || ""}`.trim())}
+            </section>
+            <section class="problem-tab-panel ${currentTab === "solutions" ? "is-active" : ""}" data-problem-panel="solutions" role="tabpanel">
+              ${renderProblemSolutions(problem.solutions, problem.id)}
+            </section>
+            <section class="problem-tab-panel ${currentTab === "submissions" ? "is-active" : ""}" data-problem-panel="submissions" role="tabpanel">
+              ${renderProblemRecentSubmissions(problem.id, recentSubmissions)}
+            </section>
           </div>
         </article>
+        <div class="workbench-divider" id="workbench-divider" aria-hidden="true"></div>
+        <aside class="editor-pane">
+          <div class="pane-content">
+          <form id="submit-form" class="editor-form">
+            <div class="editor-surface">
+              <textarea class="text-area" id="problem-code-editor" name="code" placeholder="#include <iostream>..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${escapeHTML(initialCode)}</textarea>
+            </div>
+            <div class="editor-bottom-stack">
+              <div class="editor-submit-strip">
+                <div class="submit-language-group">
+                  <label class="submit-language-label" for="problem-language-select">Language</label>
+                  <select class="select-input submit-language-select" name="language" id="problem-language-select">
+                    ${submissionLanguageOptions.map(([value, label]) => `
+                      <option value="${value}" ${selectedLanguage === value ? "selected" : ""}>${escapeHTML(label)}</option>
+                    `).join("")}
+                  </select>
+                  <label class="submit-language-label" for="problem-indent-size">Indent</label>
+                  <select class="select-input submit-language-select" id="problem-indent-size">
+                    ${[2, 4].map((size) => `
+                      <option value="${size}" ${getEditorIndentSize() === size ? "selected" : ""}>${size} spaces</option>
+                    `).join("")}
+                  </select>
+                </div>
+                <div class="submit-action-group">
+                  <button class="ghost-button submit-compact-button" type="button" id="run-sample-btn">Run</button>
+                  <button class="primary-button submit-compact-button" type="submit">Submit</button>
+                </div>
+              </div>
+              ${renderRunResultPanel()}
+            </div>
+          </form>
+          </div>
+        </aside>
       </section>
     `;
 
-    document.getElementById("admin-submission-filters").addEventListener("submit", (event) => {
+    initProblemWorkbenchUI();
+    initRunResultUI();
+    initProblemDetailTabs();
+    initProblemCodeEditorUI();
+
+    const codeEditor = document.getElementById("problem-code-editor");
+    const languageSelect = document.getElementById("problem-language-select");
+    const indentSizeSelect = document.getElementById("problem-indent-size");
+    let currentLanguage = selectedLanguage;
+    languageSelect?.addEventListener("change", (event) => {
+      const nextLanguage = event.currentTarget.value;
+      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
+      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
+        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
+      }
+      currentLanguage = nextLanguage;
+    });
+    indentSizeSelect?.addEventListener("change", (event) => {
+      const nextSize = Number(event.currentTarget.value) || 2;
+      localStorage.setItem("seuoj_editor_indent_size", String(nextSize));
+    });
+
+    document.getElementById("run-sample-btn").addEventListener("click", async () => {
+      if (!state.token) {
+        setFlash("Please login before running code", true);
+        location.hash = "#/auth";
+        return;
+      }
+
+      const form = new FormData(document.getElementById("submit-form"));
+      const code = (form.get("code") || "").toString();
+      const language = (form.get("language") || "cpp").toString();
+      saveSubmissionDraft(problem.id, language, code);
+
+      try {
+        const result = await apiFetch("/submissions/run", {
+          method: "POST",
+          body: JSON.stringify({
+            problem_id: Number(problem.id),
+            language,
+            code,
+          }),
+        });
+        state.runResult = { problemID: problem.id, contestID: null, ...result };
+        renderProblemDetail(problem.id);
+      } catch (err) {
+        setFlash(err.message, true);
+      }
+    });
+
+    document.getElementById("submit-form").addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (!state.token) {
+        setFlash("Please login before submitting", true);
+        location.hash = "#/auth";
+        return;
+      }
+
       const form = new FormData(event.currentTarget);
-      const next = new URLSearchParams();
-      ["user_id", "problem_id", "contest_id", "status", "page", "page_size"].forEach((key) => {
-        const value = (form.get(key) || "").toString().trim();
-        if (value) next.set(key, value);
-      });
-      location.hash = next.toString() ? `#/admin/submissions?${next.toString()}` : "#/admin/submissions";
-    });
-
-    document.getElementById("clear-admin-submission-filters").addEventListener("click", () => {
-      location.hash = "#/admin/submissions";
-    });
-
-    document.querySelectorAll(".admin-rejudge-btn").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const id = button.dataset.submissionId;
-        try {
-          await apiFetch(`/admin/submissions/${id}/rejudge`, { method: "POST" });
-          setFlash(`Submission #${id} requeued`, false);
-          await renderAdminSubmissions();
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
+      const language = (form.get("language") || "").toString();
+      const code = (form.get("code") || "").toString();
+      saveSubmissionDraft(problem.id, language, code);
+      try {
+        const result = await apiFetch("/submissions", {
+          method: "POST",
+          body: JSON.stringify({
+            problem_id: Number(problem.id),
+            language,
+            code,
+          }),
+        });
+        setFlash(`Submission created: #${result.submission_id}, status ${result.status}`, false);
+        location.hash = `#/submissions/${result.submission_id}`;
+      } catch (err) {
+        setFlash(err.message, true);
+      }
     });
   } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load admin submissions failed: ${escapeHTML(err.message)}</p></div>`;
+    app.innerHTML = `<div class="detail-card"><p>Load problem failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
 
-
-async function renderAdminUsers() {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before managing users.</p></div>`;
-    return;
+function getProblemDifficulty(problem) {
+  const rawDifficulty = [
+    problem?.difficulty,
+    problem?.difficulty_label,
+    problem?.level,
+    problem?.level_name,
+  ].find((value) => value !== undefined && value !== null && String(value).trim());
+  const normalized = String(rawDifficulty || "Unknown").trim();
+  const lower = normalized.toLowerCase();
+  let className = "status-neutral";
+  if (lower.includes("easy")) {
+    className = "status-accepted";
+  } else if (lower.includes("medium")) {
+    className = "status-pending";
+  } else if (lower.includes("hard")) {
+    className = "status-wrong";
   }
-  if (!state.user || state.user.role !== 'admin') {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access user management.</p></div>`;
-    return;
-  }
-
-  app.innerHTML = `<div class="detail-card"><p>Loading users...</p></div>`;
-  try {
-    const data = await apiFetch('/admin/users?page=1&page_size=100', { method: 'GET' });
-    app.innerHTML = `
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Manage Users</h1>
-          <p class="view-subtitle">Adjust roles and account status directly.</p>
-        </div>
-      </div>
-      <section class="detail-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>Student ID</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Save</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(data.list || []).map((item) => `
-              <tr>
-                <td>${item.id}</td>
-                <td><input class="text-input admin-user-input" data-field="username" data-user-id="${item.id}" value="${escapeHTML(item.username)}" /></td>
-                <td><input class="text-input admin-user-input" data-field="userid" data-user-id="${item.id}" value="${escapeHTML(item.userid)}" /></td>
-                <td>
-                  <select class="select-input admin-user-input" data-field="role" data-user-id="${item.id}">
-                    ${['student', 'admin', 'teacher'].map((role) => `<option value="${role}" ${item.role === role ? 'selected' : ''}>${role}</option>`).join('')}
-                  </select>
-                </td>
-                <td>
-                  <select class="select-input admin-user-input" data-field="status" data-user-id="${item.id}">
-                    ${['active', 'disabled'].map((status) => `<option value="${status}" ${item.status === status ? 'selected' : ''}>${status}</option>`).join('')}
-                  </select>
-                </td>
-                <td><button class="ghost-button admin-user-save" data-user-id="${item.id}">Save</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </section>
-    `;
-
-    document.querySelectorAll('.admin-user-save').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const id = button.dataset.userId;
-        const read = (field) => document.querySelector(`.admin-user-input[data-user-id="${id}"][data-field="${field}"]`).value;
-        try {
-          await apiFetch(`/admin/users/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              username: read('username'),
-              userid: read('userid'),
-              role: read('role'),
-              status: read('status'),
-            }),
-          });
-          setFlash(`User #${id} updated`, false);
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load users failed: ${escapeHTML(err.message)}</p></div>`;
-  }
+  return {
+    label: normalized,
+    className,
+  };
 }
 
-async function renderAdminAnnouncements() {
-  if (!state.token) {
-    app.innerHTML = `<div class="detail-card"><p>Please login before managing announcements.</p></div>`;
-    return;
-  }
-  if (!state.user || state.user.role !== 'admin') {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access announcement management.</p></div>`;
-    return;
-  }
-
-  app.innerHTML = `<div class="detail-card"><p>Loading announcements...</p></div>`;
-  try {
-    const data = await apiFetch('/announcements?page=1&page_size=50', { method: 'GET' });
-    app.innerHTML = `
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Manage Announcements</h1>
-          <p class="view-subtitle">Publish updates that appear on the public announcement feed.</p>
-        </div>
-        <div>
-          <a class="primary-button" href="#/admin/announcements/new">New Announcement</a>
-        </div>
-      </div>
-      <section class="detail-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Pinned</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(data.list || []).map((item) => `
-              <tr>
-                <td>${item.id}</td>
-                <td>${escapeHTML(item.title)}</td>
-                <td>${item.is_pinned ? 'Yes' : 'No'}</td>
-                <td class="mono">${escapeHTML(item.created_at)}</td>
-                <td>
-                  <a class="table-link" href="#/admin/announcements/${item.id}/edit">Edit</a>
-                  <span class="mono"> | </span>
-                  <button class="link-button admin-announcement-delete" data-announcement-id="${item.id}">Delete</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </section>
-    `;
-
-    document.querySelectorAll('.admin-announcement-delete').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const id = button.dataset.announcementId;
-        try {
-          await apiFetch(`/admin/announcements/${id}`, { method: 'DELETE' });
-          setFlash(`Announcement #${id} deleted`, false);
-          await renderAdminAnnouncements();
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load admin announcements failed: ${escapeHTML(err.message)}</p></div>`;
-  }
-}
-
-async function renderAdminAnnouncementCreate() {
-  return renderAdminAnnouncementForm(null, null);
-}
-
-async function renderAdminAnnouncementEdit(id) {
-  let initial = null;
-  try {
-    initial = await apiFetch(`/announcements/${id}`, { method: 'GET' });
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load announcement failed: ${escapeHTML(err.message)}</p></div>`;
-    return;
-  }
-  return renderAdminAnnouncementForm(id, initial);
-}
-
-async function renderAdminAnnouncementForm(id, initial) {
-  if (!state.token || state.user?.role !== 'admin') {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access announcement editing.</p></div>`;
-    return;
-  }
-  app.innerHTML = `
-    <div class="view-header">
-      <div>
-        <h1 class="view-title">${id ? 'Edit Announcement' : 'New Announcement'}</h1>
-        <p class="view-subtitle">Short operational updates, release notes, or maintenance notices.</p>
-      </div>
-    </div>
-    <form id="announcement-form" class="detail-card toolbar">
-      <div class="full">
-        <label class="field-label">Title</label>
-        <input class="text-input" name="title" value="${escapeHTML(initial?.title || '')}" required />
-      </div>
-      <div class="full">
-        <label class="field-label">Content</label>
-        <textarea class="text-area" name="content" required>${escapeHTML(initial?.content || '')}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Pinned</label>
-        <input type="checkbox" name="is_pinned" ${initial?.is_pinned ? 'checked' : ''} />
-      </div>
-      <div class="full" style="display:flex; gap:10px; align-items:center;">
-        <button class="primary-button" type="submit">${id ? 'Update' : 'Create'}</button>
-        <a class="ghost-button" href="#/admin/announcements">Back</a>
-      </div>
-    </form>
+function renderProblemTabButton(key, label, activeTab) {
+  const isActive = key === activeTab;
+  return `
+    <button
+      type="button"
+      class="problem-tab ${isActive ? "is-active" : ""}"
+      data-problem-tab="${key}"
+      role="tab"
+      aria-selected="${isActive ? "true" : "false"}"
+    >${escapeHTML(label)}</button>
   `;
+}
 
-  document.getElementById('announcement-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      await apiFetch(id ? `/admin/announcements/${id}` : '/admin/announcements', {
-        method: id ? 'PUT' : 'POST',
-        body: JSON.stringify({
-          title: form.get('title'),
-          content: form.get('content'),
-          is_pinned: form.get('is_pinned') === 'on',
-        }),
-      });
-      setFlash(`Announcement ${id ? 'updated' : 'created'}`, false);
-      location.hash = '#/admin/announcements';
-    } catch (err) {
-      setFlash(err.message, true);
-    }
+function initProblemDetailTabs() {
+  const tabs = Array.from(document.querySelectorAll("[data-problem-tab]"));
+  if (!tabs.length) {
+    return;
+  }
+
+  const panels = Array.from(document.querySelectorAll("[data-problem-panel]"));
+  const setActiveTab = (nextTab) => {
+    state.problemDetailTab = nextTab;
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.problemTab === nextTab;
+      tab.classList.toggle("is-active", isActive);
+      tab.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.problemPanel === nextTab);
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => setActiveTab(tab.dataset.problemTab));
   });
 }
 
-
-
-
-async function renderAdminContestAnnouncementCreate(contestID) {
-  return renderAdminContestAnnouncementForm(contestID, null, null);
-}
-
-async function renderAdminContestAnnouncementEdit(contestID, announcementID) {
-  if (!state.token || state.user?.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can edit contest announcements.</p></div>`;
+function initProblemWorkbenchUI() {
+  const workbench = document.getElementById("problem-workbench");
+  const divider = document.getElementById("workbench-divider");
+  if (!workbench || !divider || window.innerWidth <= 960) {
     return;
   }
-  try {
-    const initial = await apiFetch(`/admin/contests/${contestID}/announcements/${announcementID}`, { method: "GET" });
-    return renderAdminContestAnnouncementForm(contestID, announcementID, initial);
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load contest announcement failed: ${escapeHTML(err.message)}</p></div>`;
-  }
-}
 
-async function renderAdminContestAnnouncementForm(contestID, announcementID, initial) {
-  if (!state.token || state.user?.role !== "admin") {
-    app.innerHTML = `<div class="detail-card"><p>Only admin can access contest announcement editing.</p></div>`;
-    return;
-  }
-  app.innerHTML = `
-    <div class="view-header">
-      <div>
-        <h1 class="view-title">${announcementID ? "Edit Contest Announcement" : "New Contest Announcement"}</h1>
-        <p class="view-subtitle">Contest-scoped notices for clarifications, data fixes, and schedule updates.</p>
-      </div>
-    </div>
-    <form id="contest-announcement-form" class="detail-card toolbar">
-      <div class="full">
-        <label class="field-label">Title</label>
-        <input class="text-input" name="title" value="${escapeHTML(initial?.title || "")}" required />
-      </div>
-      <div class="full">
-        <label class="field-label">Content</label>
-        <textarea class="text-area" name="content" required>${escapeHTML(initial?.content || "")}</textarea>
-      </div>
-      <div>
-        <label class="field-label">Pinned</label>
-        <input type="checkbox" name="is_pinned" ${initial?.is_pinned ? "checked" : ""} />
-      </div>
-      <div class="full" style="display:flex; gap:10px; align-items:center;">
-        <button class="primary-button" type="submit">${announcementID ? "Update" : "Create"}</button>
-        <a class="ghost-button" href="#/admin/contests/${contestID}">Back</a>
-      </div>
-    </form>
-  `;
+  let dragging = false;
+  const stopDragging = () => {
+    dragging = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  };
 
-  document.getElementById("contest-announcement-form").addEventListener("submit", async (event) => {
+  const onMove = (event) => {
+    if (!dragging) return;
+    const rect = workbench.getBoundingClientRect();
+    const next = ((event.clientX - rect.left) / rect.width) * 100;
+    const bounded = Math.min(72, Math.max(38, next));
+    state.workbenchLeftWidth = bounded;
+    localStorage.setItem("seuoj_workbench_left_width", String(bounded));
+    workbench.style.setProperty("--problem-pane-width", `${bounded}%`);
+  };
+
+  const onMouseUp = () => {
+    stopDragging();
+  };
+
+  divider.addEventListener("mousedown", (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      await apiFetch(announcementID ? `/admin/contests/${contestID}/announcements/${announcementID}` : `/admin/contests/${contestID}/announcements`, {
-        method: announcementID ? "PUT" : "POST",
-        body: JSON.stringify({
-          title: form.get("title"),
-          content: form.get("content"),
-          is_pinned: form.get("is_pinned") === "on",
-        }),
-      });
-      setFlash(`Contest announcement ${announcementID ? "updated" : "created"}`, false);
-      location.hash = `#/admin/contests/${contestID}`;
-    } catch (err) {
-      setFlash(err.message, true);
+    dragging = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onMouseUp);
+  window.addEventListener("mouseleave", onMouseUp);
+}
+
+function initRunResultUI() {
+  const panel = document.getElementById("run-result-panel");
+  const resizer = document.getElementById("run-result-resizer");
+  if (!panel || !resizer) {
+    return;
+  }
+
+  let dragging = false;
+  let startY = 0;
+  let startHeight = 0;
+
+  const stopDragging = () => {
+    dragging = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  };
+
+  const onMove = (event) => {
+    if (!dragging) return;
+    const delta = event.clientY - startY;
+    const nextHeight = Math.max(80, Math.min(420, startHeight - delta));
+    state.runResultHeight = nextHeight;
+    localStorage.setItem("seuoj_run_result_height", String(nextHeight));
+    panel.style.height = `${nextHeight}px`;
+  };
+
+  resizer.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    dragging = true;
+    startY = event.clientY;
+    startHeight = panel.getBoundingClientRect().height;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", stopDragging);
+  window.addEventListener("mouseleave", stopDragging);
+}
+
+function initProblemCodeEditorUI() {
+  const editor = document.getElementById("problem-code-editor");
+  if (!editor) {
+    return;
+  }
+
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const value = editor.value;
+      const indentUnit = getEditorIndentUnit();
+      editor.value = `${value.slice(0, start)}${indentUnit}${value.slice(end)}`;
+      editor.selectionStart = editor.selectionEnd = start + indentUnit.length;
+      return;
     }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const value = editor.value;
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const linePrefix = value.slice(lineStart, start);
+      const baseIndent = (linePrefix.match(/^\s*/) || [""])[0];
+      const indentUnit = getEditorIndentUnit();
+      const beforeCursor = value.slice(0, start);
+      const afterCursor = value.slice(end);
+      const trimmedPrefix = linePrefix.trimEnd();
+      const nextChar = value[end] || "";
+      const shouldIncreaseIndent = /[\{\[\(]$/.test(trimmedPrefix);
+      const shouldOutdentClosing = /^[\}\]\)]/.test(nextChar);
+
+      if (shouldIncreaseIndent && shouldOutdentClosing) {
+        const inserted = `\n${baseIndent}${indentUnit}\n${baseIndent}`;
+        editor.value = `${beforeCursor}${inserted}${afterCursor}`;
+        editor.selectionStart = editor.selectionEnd = start + baseIndent.length + indentUnit.length + 1;
+        return;
+      }
+
+      const nextIndent = shouldIncreaseIndent ? `${baseIndent}${indentUnit}` : baseIndent;
+      editor.value = `${beforeCursor}\n${nextIndent}${afterCursor}`;
+      editor.selectionStart = editor.selectionEnd = start + nextIndent.length + 1;
+      return;
+    }
+
+    const pairs = {
+      "(": ")",
+      "[": "]",
+      "{": "}",
+      "\"": "\"",
+      "'": "'",
+    };
+    const closing = pairs[event.key];
+    if (!closing || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const value = editor.value;
+    const selected = value.slice(start, end);
+    const nextChar = value[end];
+
+    if (!selected && nextChar === closing && event.key === closing) {
+      event.preventDefault();
+      editor.selectionStart = editor.selectionEnd = end + 1;
+      return;
+    }
+
+    event.preventDefault();
+    editor.value = `${value.slice(0, start)}${event.key}${selected}${closing}${value.slice(end)}`;
+    if (selected) {
+      editor.selectionStart = start + 1;
+      editor.selectionEnd = end + 1;
+      return;
+    }
+    editor.selectionStart = editor.selectionEnd = start + 1;
   });
 }
 
+function getEditorIndentSize() {
+  const raw = Number(localStorage.getItem("seuoj_editor_indent_size"));
+  return raw === 4 ? 4 : 2;
+}
 
+function getEditorIndentUnit() {
+  return " ".repeat(getEditorIndentSize());
+}
+
+function renderProblemBlock(title, content) {
+  return `
+    <div class="detail-block">
+      <h3>${escapeHTML(title)}</h3>
+      ${renderMarkdownBlock(content)}
+    </div>
+  `;
+}
+
+function renderProblemCodeBlock(title, content) {
+  return `
+    <div class="detail-block">
+      <h3>${escapeHTML(title)}</h3>
+      ${renderPlainCodeBlock(content)}
+    </div>
+  `;
+}
+function renderProblemSolutions(solutions, problemID) {
+  const list = solutions || [];
+  return `
+    <div class="detail-block">
+      <div class="view-header compact">
+        <div>
+          <p class="view-subtitle">Editorial notes and official write-ups for this problem.</p>
+        </div>
+        ${isTeacherUser() ? `<a class="ghost-button" href="#/teacher/problems/${problemID}/solutions">Manage Solutions</a>` : ""}
+      </div>
+      ${list.length ? `
+        <div class="solution-stack">
+          ${list.map((item) => `
+            <article class="solution-card">
+              <div class="view-header compact">
+                <div>
+                  <h4 class="solution-title">${escapeHTML(item.title)}</h4>
+                  <p class="view-subtitle">Solution #${item.id}</p>
+                </div>
+                <span class="status-pill ${teachingVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
+              </div>
+              ${renderMarkdownBlock(item.content || "")}
+            </article>
+          `).join("")}
+        </div>
+      ` : renderTeachingEmpty("No public solutions yet.")}
+    </div>
+  `;
+}
+
+function renderPlainCodeBlock(content) {
+  return `<pre class="problem-plain-pre">${escapeHTML(content || "")}</pre>`;
+}
+
+function renderMarkdownBlock(content) {
+  const source = (content || "").toString().trim();
+  if (!source) {
+    return `<div class="problem-markdown empty">No content.</div>`;
+  }
+  return `<div class="problem-markdown">${renderMarkdown(source)}</div>`;
+}
+
+function renderMarkdown(content) {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  const html = [];
+  let paragraph = [];
+  let listType = null;
+  let listItems = [];
+  let codeFence = null;
+  let codeLines = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push(`<p>${renderInlineMarkdown(paragraph.join("<br>"))}</p>`);
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!listType || !listItems.length) return;
+    html.push(`<${listType}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  const flushCodeFence = () => {
+    if (!codeFence) return;
+    html.push(`<pre class="problem-markdown-pre"><code>${escapeHTML(codeLines.join("\n"))}</code></pre>`);
+    codeFence = null;
+    codeLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine ?? "";
+
+    if (codeFence) {
+      if (/^```/.test(line.trim())) {
+        flushCodeFence();
+      } else {
+        codeLines.push(line);
+      }
+      continue;
+    }
+
+    if (/^```/.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      codeFence = "fence";
+      codeLines = [];
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      const level = headingMatch[1].length;
+      html.push(`<h${level + 1}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level + 1}>`);
+      continue;
+    }
+
+    const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      if (listType && listType !== "ul") {
+        flushList();
+      }
+      listType = "ul";
+      listItems.push(bulletMatch[1].trim());
+      continue;
+    }
+
+    const orderedMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (orderedMatch) {
+      flushParagraph();
+      if (listType && listType !== "ol") {
+        flushList();
+      }
+      listType = "ol";
+      listItems.push(orderedMatch[1].trim());
+      continue;
+    }
+
+    const quoteMatch = line.match(/^\s*>\s?(.*)$/);
+    if (quoteMatch) {
+      flushParagraph();
+      flushList();
+      html.push(`<blockquote>${renderInlineMarkdown(quoteMatch[1])}</blockquote>`);
+      continue;
+    }
+
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  flushCodeFence();
+
+  return html.join("");
+}
+
+function renderInlineMarkdown(input) {
+  const escaped = escapeHTML(input);
+  return escaped
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^\*])\*([^*]+)\*/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function renderRunResultPanel() {
+  const result = state.runResult;
+  return `
+    <div class="run-result-panel" id="run-result-panel" style="height:${state.runResultHeight}px;">
+      <div class="run-result-resizer" id="run-result-resizer" aria-hidden="true"></div>
+      <div class="run-result-head">
+        <strong>Run Result</strong>
+        ${result ? `<span class="status-pill ${statusClass(result.status)}">${escapeHTML(result.status)}</span>` : `<span class="status-pill status-neutral">Not Run</span>`}
+      </div>
+      ${!result ? `<div class="run-result-empty">Click Run to execute your code against the sample tests.</div>` : ""}
+      ${result?.compile_info ? `<pre class="run-result-pre">${escapeHTML(result.compile_info)}</pre>` : ""}
+      ${result?.error_message && !result.compile_info ? `<div class="run-result-error">${escapeHTML(result.error_message)}</div>` : ""}
+      ${(result?.results || []).map((item, index) => `
+        <div class="run-case-card">
+          <div class="run-case-head">
+            <span>Sample ${index + 1}</span>
+          </div>
+          <div class="run-case-grid">
+            <div>
+              <label class="field-label">Input</label>
+              <pre class="run-result-pre">${escapeHTML(item.input_data || "")}</pre>
+            </div>
+            <div>
+              <label class="field-label">Expected</label>
+              <pre class="run-result-pre">${escapeHTML(item.expected_output || "")}</pre>
+            </div>
+            <div class="full">
+              <label class="field-label">Actual</label>
+              <pre class="run-result-pre">${escapeHTML(item.actual_output || "")}</pre>
+            </div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function getDefaultCodeTemplate(language) {
+  return submissionLanguageTemplates[language] || submissionLanguageTemplates.cpp;
+}
+
+function renderSampleCaseList(sampleCases) {
+  return sampleCases.map((item, index) => `
+    <div class="detail-card" style="margin-top:12px; padding:14px;">
+      <div class="view-header" style="margin-bottom:10px;">
+        <div>
+          <h3 style="margin:0;">Sample #${index + 1}</h3>
+        </div>
+      </div>
+      <div class="grid-form">
+        <div>
+          <label class="field-label">Input</label>
+          <pre>${escapeHTML(item.input_data || "")}</pre>
+        </div>
+        <div>
+          <label class="field-label">Output</label>
+          <pre>${escapeHTML(item.output_data || "")}</pre>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function loadProblemStatusMap() {
+  try {
+    const data = await apiFetch("/submissions/my?page=1&page_size=100", { method: "GET" });
+    const map = {};
+    for (const item of data.list || []) {
+      const current = map[item.problem_id];
+      if (!current || (current !== "Accepted" && item.status === "Accepted")) {
+        map[item.problem_id] = item.status;
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+async function loadRecentProblemSubmissions(problemID, contestID = null) {
+  try {
+    const query = new URLSearchParams({ page: "1", page_size: "5", problem_id: String(problemID) });
+    if (contestID) {
+      query.set("contest_id", String(contestID));
+    }
+    const data = await apiFetch(`/submissions/my?${query.toString()}`, { method: "GET" });
+    return data.list || [];
+  } catch {
+    return [];
+  }
+}
+
+function renderProblemStatusPill(status) {
+  if (!state.token) {
+    return `<span class="status-pill status-neutral">Login to track</span>`;
+  }
+  if (!status) {
+    return `<span class="status-pill status-neutral">Not Submitted</span>`;
+  }
+  return `<span class="status-pill ${statusClass(status)}">${escapeHTML(status)}</span>`;
+}
+
+function renderProblemRecentSubmissions(problemID, submissions, contestID = null) {
+  if (!state.token) {
+    return `
+      <div class="detail-block">
+        <p class="view-subtitle">Login to see your attempts on this problem.</p>
+      </div>
+    `;
+  }
+
+  if (!submissions.length) {
+    return `
+      <div class="detail-block">
+        <p class="view-subtitle">No submissions for this problem yet.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="detail-block">
+      <div class="view-header" style="margin-bottom:12px;">
+        <p class="view-subtitle">Latest attempts on this problem.</p>
+        <a class="ghost-button" href="#/submissions?problem_id=${problemID}${contestID ? `&contest_id=${contestID}` : ``}">View All</a>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Passed</th>
+            <th>Runtime</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${submissions.map((item) => `
+            <tr>
+              <td><a class="table-link" href="#/submissions/${item.id}">${item.id}</a></td>
+              <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
+              <td>${item.passed_count}/${item.total_count}</td>
+              <td>${item.runtime_ms ?? "-"}</td>
+              <td class="mono">${escapeHTML(item.created_at)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
