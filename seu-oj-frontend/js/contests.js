@@ -144,6 +144,7 @@ async function renderContestDetail(id) {
           <span class="status-pill ${contestStatusClass(contest.status)}">${escapeHTML(contest.status)}</span>
           ${contest.allow_practice ? `<span class="status-pill status-neutral">practice</span>` : ""}
           ${contest.ranklist_frozen ? `<span class="status-pill status-pending">frozen</span>` : contest.ranklist_freeze_at ? `<span class="status-pill status-neutral">freeze set</span>` : ""}
+          <a class="ghost-button" href="#/forum?scope_type=contest&scope_id=${encodeURIComponent(contest.id)}">Discuss</a>
           ${state.token && me?.can_register ? `<button class="primary-button" id="contest-register-btn">Register</button>` : ""}
           ${me?.can_view_problems ? `<a class="ghost-button" href="#contest-problems">Problems</a>` : ""}
         </div>
@@ -1001,12 +1002,3 @@ function renderContestStatusBreakdown(contests) {
     </div>
   `;
 }
-
-
-
-
-
-
-
-
-
