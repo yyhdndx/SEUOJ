@@ -2,8 +2,8 @@
 
 - 需求: `STORY-002-forum-search-and-zones`
 - 版本: `v1`
-- 作者: `GitHub Copilot`
-- 审查者: `(待指派)`
+- 作者: `Liushuo`
+- 审查者: `Yu Yihang`
 
 ## 1. 文件改动
 
