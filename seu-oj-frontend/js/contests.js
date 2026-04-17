@@ -544,6 +544,11 @@ async function renderAdminContestEdit(id) {
     app.innerHTML = `<div class="detail-card"><p>Only admin can edit contests.</p></div>`;
     return;
   }
+  // 参数校验：id 必须为正整数，否则跳转到新建比赛页面
+  if (!/^[0-9]+$/.test(String(id))) {
+    location.hash = "#/admin/contests/new";
+    return;
+  }
   try {
     const detail = await apiFetch(`/admin/contests/${id}`, { method: "GET" });
     return renderAdminContestForm(id, detail);
@@ -560,7 +565,8 @@ async function renderAdminContestForm(id, initial) {
 
   app.innerHTML = `<div class="detail-card"><p>Loading contest form...</p></div>`;
   try {
-    const problemsData = await apiFetch("/admin/problems?page=1&page_size=200&include_hidden=true", { method: "GET" });
+    // Backend enforces page_size <= 100 (dto.AdminProblemListQuery), so keep it within limit.
+    const problemsData = await apiFetch("/admin/problems?page=1&page_size=100&include_hidden=true", { method: "GET" });
     const problems = problemsData.list || [];
     const initialProblems = (initial?.problems && initial.problems.length)
       ? initial.problems
