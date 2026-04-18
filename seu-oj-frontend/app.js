@@ -7,12 +7,14 @@
   submissions: [],
   submissionDetail: null,
   runResult: null,
+  runResultPending: false,
   submissionPollTimer: null,
   submissionsPollTimer: null,
   problemTitleMap: {},
   workbenchLeftWidth: Number(localStorage.getItem("seuoj_workbench_left_width")) || 48,
   runResultHeight: Number(localStorage.getItem("seuoj_run_result_height")) || 180,
   contestPollTimer: null,
+  runResultUIAbort: null,
 };
 
 const submissionLanguageOptions = [

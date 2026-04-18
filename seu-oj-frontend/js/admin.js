@@ -74,6 +74,7 @@ async function renderProblemDetail(id) {
     if (!state.runResult || state.runResult.problemID !== problem.id || state.runResult.contestID) {
       state.runResult = null;
     }
+    state.runResultPending = false;
     const draft = readSubmissionDraft(problem.id);
     const selectedLanguage = draft?.language || "cpp";
     const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
@@ -158,7 +159,7 @@ async function renderProblemDetail(id) {
                   <button class="primary-button submit-compact-button" type="submit">Submit</button>
                 </div>
               </div>
-              ${renderRunResultPanel()}
+              <div id="run-result-slot">${renderRunResultPanel()}</div>
             </div>
           </form>
           </div>
@@ -199,6 +200,8 @@ async function renderProblemDetail(id) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      state.runResultPending = true;
+      refreshRunResultPanel();
 
       try {
         const result = await apiFetch("/submissions/run", {
@@ -209,9 +212,12 @@ async function renderProblemDetail(id) {
             code,
           }),
         });
+        state.runResultPending = false;
         state.runResult = { problemID: problem.id, contestID: null, ...result };
-        renderProblemDetail(problem.id);
+        refreshRunResultPanel();
       } catch (err) {
+        state.runResultPending = false;
+        refreshRunResultPanel();
         setFlash(err.message, true);
       }
     });
@@ -355,6 +361,13 @@ function initRunResultUI() {
     return;
   }
 
+  if (state.runResultUIAbort) {
+    state.runResultUIAbort.abort();
+  }
+  const controller = new AbortController();
+  const { signal } = controller;
+  state.runResultUIAbort = controller;
+
   let dragging = false;
   let startY = 0;
   let startHeight = 0;
@@ -381,11 +394,11 @@ function initRunResultUI() {
     startHeight = panel.getBoundingClientRect().height;
     document.body.style.cursor = "ns-resize";
     document.body.style.userSelect = "none";
-  });
+  }, { signal });
 
-  window.addEventListener("mousemove", onMove);
-  window.addEventListener("mouseup", stopDragging);
-  window.addEventListener("mouseleave", stopDragging);
+  window.addEventListener("mousemove", onMove, { signal });
+  window.addEventListener("mouseup", stopDragging, { signal });
+  window.addEventListener("mouseleave", stopDragging, { signal });
 }
 
 function initProblemCodeEditorUI() {
@@ -652,39 +665,63 @@ function renderInlineMarkdown(input) {
 }
 function renderRunResultPanel() {
   const result = state.runResult;
+  const statusText = state.runResultPending
+    ? "Running"
+    : (result?.status || "Not Run");
+  const body = state.runResultPending
+    ? `<div class="run-result-empty">Running your code against the sample tests...</div>`
+    : !result
+      ? `<div class="run-result-empty">Click Run to execute your code against the sample tests.</div>`
+      : `
+        ${result.compile_info ? `<pre class="run-result-pre">${escapeHTML(result.compile_info)}</pre>` : ""}
+        ${result.error_message && !result.compile_info ? `<div class="run-result-error">${escapeHTML(result.error_message)}</div>` : ""}
+        ${(result.results || []).map((item, index) => `
+          <div class="run-case-card">
+            <div class="run-case-head">
+              <span>Sample ${index + 1}</span>
+            </div>
+            <div class="run-case-grid">
+              <div>
+                <label class="field-label">Input</label>
+                <pre class="run-result-pre">${escapeHTML(item.input_data || "")}</pre>
+              </div>
+              <div>
+                <label class="field-label">Expected</label>
+                <pre class="run-result-pre">${escapeHTML(item.expected_output || "")}</pre>
+              </div>
+              <div class="full">
+                <label class="field-label">Actual</label>
+                <pre class="run-result-pre">${escapeHTML(item.actual_output || "")}</pre>
+              </div>
+            </div>
+          </div>
+        `).join("") || `<div class="run-result-empty">Run finished, but no sample case details were returned.</div>`}
+      `;
+
   return `
     <div class="run-result-panel" id="run-result-panel" style="height:${state.runResultHeight}px;">
       <div class="run-result-resizer" id="run-result-resizer" aria-hidden="true"></div>
       <div class="run-result-head">
         <strong>Run Result</strong>
-        ${result ? `<span class="status-pill ${statusClass(result.status)}">${escapeHTML(result.status)}</span>` : `<span class="status-pill status-neutral">Not Run</span>`}
+        <span class="status-pill ${state.runResultPending ? "status-pending" : statusClass(statusText)}">${escapeHTML(statusText)}</span>
       </div>
-      ${!result ? `<div class="run-result-empty">Click Run to execute your code against the sample tests.</div>` : ""}
-      ${result?.compile_info ? `<pre class="run-result-pre">${escapeHTML(result.compile_info)}</pre>` : ""}
-      ${result?.error_message && !result.compile_info ? `<div class="run-result-error">${escapeHTML(result.error_message)}</div>` : ""}
-      ${(result?.results || []).map((item, index) => `
-        <div class="run-case-card">
-          <div class="run-case-head">
-            <span>Sample ${index + 1}</span>
-          </div>
-          <div class="run-case-grid">
-            <div>
-              <label class="field-label">Input</label>
-              <pre class="run-result-pre">${escapeHTML(item.input_data || "")}</pre>
-            </div>
-            <div>
-              <label class="field-label">Expected</label>
-              <pre class="run-result-pre">${escapeHTML(item.expected_output || "")}</pre>
-            </div>
-            <div class="full">
-              <label class="field-label">Actual</label>
-              <pre class="run-result-pre">${escapeHTML(item.actual_output || "")}</pre>
-            </div>
-          </div>
-        </div>
-      `).join("")}
+      ${body}
     </div>
   `;
+}
+
+function refreshRunResultPanel() {
+  const slot = document.getElementById("run-result-slot");
+  const runButton = document.getElementById("run-sample-btn");
+  if (runButton) {
+    runButton.disabled = state.runResultPending;
+    runButton.textContent = state.runResultPending ? "Running..." : "Run";
+  }
+  if (!slot) {
+    return;
+  }
+  slot.innerHTML = renderRunResultPanel();
+  initRunResultUI();
 }
 
 function getDefaultCodeTemplate(language) {
