@@ -3,9 +3,9 @@ server:
   port: "8080"
 
 database:
-  host: "10.208.107.38"
+  host: "8.140.36.87"
   port: "3306"
-  user: "remote_user"
+  user: "remote_admin"
   password: "123456"
   name: "seuoj"
 
