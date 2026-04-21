@@ -148,13 +148,21 @@ async function renderProblemDetail(id) {
     initRunResultUI();
 
     const codeEditor = document.getElementById("problem-code-editor");
+    await mountProblemCodeEditor(codeEditor);
+    state.problemCodeEditor?.focus();
+
     const languageSelect = document.getElementById("problem-language-select");
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
       const previousTemplate = getDefaultCodeTemplate(currentLanguage);
       if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
+        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
+        if (state.problemCodeEditor) {
+          state.problemCodeEditor.setValue(nextTemplate);
+        } else {
+          codeEditor.value = nextTemplate;
+        }
       }
       currentLanguage = nextLanguage;
     });
@@ -542,6 +550,27 @@ function refreshRunResultPanel() {
   }
   slot.innerHTML = renderRunResultPanel();
   initRunResultUI();
+}
+
+async function mountProblemCodeEditor(textarea) {
+  if (!textarea || state.problemCodeEditor) {
+    return state.problemCodeEditor;
+  }
+
+  try {
+    await (window.codeMirrorReadyPromise || Promise.resolve());
+  } catch (error) {
+    console.error("[problem-editor-init]", error);
+    setFlash(`CodeMirror load failed: ${error?.message || error}`, true);
+    return null;
+  }
+
+  if (!document.body.contains(textarea) || typeof window.createProblemCodeEditor !== "function") {
+    return null;
+  }
+
+  state.problemCodeEditor = window.createProblemCodeEditor(textarea);
+  return state.problemCodeEditor;
 }
 
 function getDefaultCodeTemplate(language) {

@@ -251,6 +251,19 @@ body.problem-fullscreen .problem-pane .pane-content {
   padding: 16px 18px;
 }
 
+.editor-form .text-area.is-codemirror-hidden {
+  display: none;
+}
+
+.problem-code-editor-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.problem-code-editor-host .cm-editor {
+  height: 100%;
+}
+
 .editor-toolbar,
 .editor-actions,
 .editor-topbar-left,
