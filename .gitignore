@@ -31,6 +31,7 @@ cover.out
 .gocache/
 seu-oj-backend/.gocache/
 vendor/
+logs/
 
 # Node / frontend
 node_modules/
@@ -78,3 +79,6 @@ seu-oj-backend/config/config.yaml
 *.bak
 *.swp
 *.swo
+
+seu-oj-backend/config/config.yaml
+seu-oj-backend/logs/server.log

@@ -7,12 +7,15 @@
   submissions: [],
   submissionDetail: null,
   runResult: null,
+  runResultPending: false,
   submissionPollTimer: null,
   submissionsPollTimer: null,
   problemTitleMap: {},
   workbenchLeftWidth: Number(localStorage.getItem("seuoj_workbench_left_width")) || 48,
   runResultHeight: Number(localStorage.getItem("seuoj_run_result_height")) || 180,
   contestPollTimer: null,
+  runResultUIAbort: null,
+  problemCodeEditor: null,
 };
 
 const submissionLanguageOptions = [
@@ -265,6 +268,10 @@ function getHashQueryParams() {
 }
 
 async function renderRoute() {
+  if (state.problemCodeEditor) {
+    state.problemCodeEditor.destroy();
+    state.problemCodeEditor = null;
+  }
   stopSubmissionPolling();
   stopSubmissionsPolling();
   stopContestPolling();

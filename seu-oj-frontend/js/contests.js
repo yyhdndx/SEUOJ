@@ -343,6 +343,7 @@ async function renderContestProblemDetail(contestID, problemID) {
     if (!state.runResult || state.runResult.problemID !== problem.id || state.runResult.contestID !== Number(contestID)) {
       state.runResult = null;
     }
+    state.runResultPending = false;
     const draft = readSubmissionDraft(problem.id);
     const selectedLanguage = draft?.language || "cpp";
     const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
@@ -384,8 +385,9 @@ async function renderContestProblemDetail(contestID, problemID) {
         <aside class="editor-pane">
           <div class="pane-content">
           <form id="submit-form" class="editor-form">
+            ${typeof renderProblemEditorLoadNotice === "function" ? renderProblemEditorLoadNotice() : ""}
             <div class="editor-surface">
-              <textarea class="text-area" id="problem-code-editor" name="code" placeholder="#include <iostream>...">${escapeHTML(initialCode)}</textarea>
+              <textarea class="text-area" id="problem-code-editor" name="code" data-language="${escapeHTML(selectedLanguage)}" data-indent-size="${getEditorIndentSize()}" placeholder="#include <iostream>..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${escapeHTML(initialCode)}</textarea>
             </div>
             <div class="editor-bottom-stack">
               <div class="editor-submit-strip">
@@ -402,7 +404,7 @@ async function renderContestProblemDetail(contestID, problemID) {
                   <button class="primary-button submit-compact-button" type="submit">Submit</button>
                 </div>
               </div>
-              ${renderRunResultPanel()}
+              <div id="run-result-slot">${renderRunResultPanel()}</div>
             </div>
           </form>
           </div>
@@ -414,15 +416,24 @@ async function renderContestProblemDetail(contestID, problemID) {
     initRunResultUI();
 
     const codeEditor = document.getElementById("problem-code-editor");
+    await mountProblemCodeEditor(codeEditor);
+    state.problemCodeEditor?.focus();
+
     const languageSelect = document.getElementById("problem-language-select");
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
       const previousTemplate = getDefaultCodeTemplate(currentLanguage);
       if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
+        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
+        if (state.problemCodeEditor) {
+          state.problemCodeEditor.setValue(nextTemplate);
+        } else {
+          codeEditor.value = nextTemplate;
+        }
       }
       currentLanguage = nextLanguage;
+      state.problemCodeEditor?.setLanguage(nextLanguage);
     });
 
     document.getElementById("run-sample-btn").addEventListener("click", async () => {
@@ -430,6 +441,8 @@ async function renderContestProblemDetail(contestID, problemID) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      state.runResultPending = true;
+      refreshRunResultPanel();
       try {
         const result = await apiFetch("/submissions/run", {
           method: "POST",
@@ -440,9 +453,12 @@ async function renderContestProblemDetail(contestID, problemID) {
             code,
           }),
         });
+        state.runResultPending = false;
         state.runResult = { problemID: problem.id, contestID: Number(contestID), ...result };
-        renderContestProblemDetail(contestID, problemID);
+        refreshRunResultPanel();
       } catch (err) {
+        state.runResultPending = false;
+        refreshRunResultPanel();
         setFlash(err.message, true);
       }
     });
