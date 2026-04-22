@@ -274,3 +274,4 @@
 2026/04/22 21:24:16.299229 [judge-worker] started, waiting for submissions from "judge:queue"
 2026/04/22 21:24:50.345527 [bootstrap] logging initialized: logs\server.log
 2026/04/22 21:25:02.080208 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/22 22:26:17.926246 [judge-worker] shutdown complete
