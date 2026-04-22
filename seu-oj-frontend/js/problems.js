@@ -90,15 +90,6 @@ async function renderProblemDetail(id) {
       <section class="problem-workbench resizable" id="problem-workbench" style="--problem-pane-width:${state.workbenchLeftWidth}%;">
         <article class="problem-pane">
           <div class="pane-header">
-<<<<<<< HEAD
-            <div>
-              <h2 class="pane-title">${escapeHTML(problem.title)}</h2>
-              <p class="view-subtitle">#${problem.id} / ${escapeHTML(problem.display_id || "-")} / ${escapeHTML(problem.judge_mode)}</p>
-            </div>
-            <div class="pill-row">
-              <span class="status-pill status-neutral">${escapeHTML(problem.judge_mode)}</span>
-              <a class="ghost-button" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
-=======
             <div class="problem-heading">
               <div class="problem-heading-meta">
                 <span class="problem-display-id">${escapeHTML(problem.display_id || `Problem ${problem.id}`)}</span>
@@ -111,7 +102,6 @@ async function renderProblemDetail(id) {
                 <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
                 <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
               </div>
->>>>>>> eb0d916efb1dec36729f161f10ea745e5589fa13
             </div>
           </div>
           <div class="pane-content">
