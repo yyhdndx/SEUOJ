@@ -116,13 +116,6 @@ async function renderProblemDetail(id) {
               ${renderProblemBlock("Output", problem.output_desc)}
               ${renderProblemCodeBlock("Sample Input", problem.sample_input)}
               ${renderProblemCodeBlock("Sample Output", problem.sample_output)}
-              ${sampleCases.length ? `
-                <div class="detail-block">
-                  <h3>Sample Testcases</h3>
-                  <p class="view-subtitle">${sampleCases.length} sample case(s) are available.</p>
-                  ${renderSampleCaseList(sampleCases)}
-                </div>
-              ` : ""}
               ${renderProblemStats(problemStats)}
               ${renderProblemBlock("Source / Hint", `${problem.source || ""}\n${problem.hint || ""}`.trim())}
             </section>
