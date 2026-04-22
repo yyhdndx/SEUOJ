@@ -284,8 +284,9 @@ async function renderContestProblemDetail(contestID, problemID) {
         <aside class="editor-pane">
           <div class="pane-content">
           <form id="submit-form" class="editor-form">
+            ${typeof renderProblemEditorLoadNotice === "function" ? renderProblemEditorLoadNotice() : ""}
             <div class="editor-surface">
-              <textarea class="text-area" id="problem-code-editor" name="code" placeholder="#include <iostream>...">${escapeHTML(initialCode)}</textarea>
+              <textarea class="text-area" id="problem-code-editor" name="code" data-language="${escapeHTML(selectedLanguage)}" data-indent-size="${getEditorIndentSize()}" placeholder="#include <iostream>..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${escapeHTML(initialCode)}</textarea>
             </div>
             <div class="editor-bottom-stack">
               <div class="editor-submit-strip">
@@ -314,15 +315,24 @@ async function renderContestProblemDetail(contestID, problemID) {
     initRunResultUI();
 
     const codeEditor = document.getElementById("problem-code-editor");
+    await mountProblemCodeEditor(codeEditor);
+    state.problemCodeEditor?.focus();
+
     const languageSelect = document.getElementById("problem-language-select");
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
       const previousTemplate = getDefaultCodeTemplate(currentLanguage);
       if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
+        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
+        if (state.problemCodeEditor) {
+          state.problemCodeEditor.setValue(nextTemplate);
+        } else {
+          codeEditor.value = nextTemplate;
+        }
       }
       currentLanguage = nextLanguage;
+      state.problemCodeEditor?.setLanguage(nextLanguage);
     });
 
     document.getElementById("run-sample-btn").addEventListener("click", async () => {
