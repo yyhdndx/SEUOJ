@@ -1,10 +1,10 @@
 ﻿# STORY-002-forum-search-and-zones
 
-- Status: `todo`
+- Status: `in_progress`
 - Priority: `P1`
-- Assignee: `unassigned`
+- Assignee: `Liu Shuo`
 - Reviewer: `unassigned`
-- Created At: `2026-04-14`
+- Created At: `2026-4-17`
 - Target Version: `v0.1`
 
 ## Background
@@ -134,5 +134,3 @@ go build ./...
 ## Handover Notes
 
 当前论坛模块已经具备基本交互能力，本 story 的重点是把论坛首页从“可用”提升到“便于持续使用”。如果涉及后端接口变更，delivery 中必须明确说明新增了哪些参数和返回字段。
-
-
