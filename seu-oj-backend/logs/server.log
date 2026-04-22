@@ -257,3 +257,20 @@
 2026/04/14 21:46:49.573062 [judge-worker] submission=26 testcase=5 status=Accepted runtime_ms=457 error=-
 2026/04/14 21:46:49.981656 [judge-worker] submission=26 testcase=6 status=Accepted runtime_ms=403 error=-
 2026/04/14 21:46:49.985875 [judge-worker] submission=26 finished status=Accepted passed=2/2 total_runtime_ms=860 elapsed_ms=1617
+2026/04/21 22:39:44.532555 [bootstrap] logging initialized: logs\server.log
+2026/04/21 22:39:54.873949 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/21 22:39:56.166328 [bootstrap] logging initialized: logs\server.log
+2026/04/21 22:40:06.109698 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/21 22:40:06.242552 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/21 22:40:06.365550 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/22 01:01:20.381598 [judge-worker] shutdown complete
+2026/04/22 21:18:39.154027 [bootstrap] logging initialized: logs\server.log
+2026/04/22 21:18:51.430332 connect redis failed: dial tcp 127.0.0.1:6379: connectex: No connection could be made because the target machine actively refused it.
+2026/04/22 21:19:16.882496 [bootstrap] logging initialized: logs\server.log
+2026/04/22 21:19:30.679852 connect redis failed: dial tcp 127.0.0.1:6379: connectex: No connection could be made because the target machine actively refused it.
+2026/04/22 21:24:04.367454 [bootstrap] logging initialized: logs\server.log
+2026/04/22 21:24:16.052245 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
+2026/04/22 21:24:16.193192 [sandbox] validating docker images for languages=cpp,c,python3,java,go,rust
+2026/04/22 21:24:16.299229 [judge-worker] started, waiting for submissions from "judge:queue"
+2026/04/22 21:24:50.345527 [bootstrap] logging initialized: logs\server.log
+2026/04/22 21:25:02.080208 [sandbox] compile_image=gcc:13 run_image=gcc:13 user=65534:65534 cpus=1.0 memory_mb=256 pids_limit=64 tmpfs_mb=64 file_size_kb=1024 output_limit_kb=256 compile_output_kb=256 read_only_rootfs=true
