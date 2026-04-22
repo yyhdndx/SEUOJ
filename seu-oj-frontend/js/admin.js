@@ -63,7 +63,7 @@ async function renderProblems() {
   }
 }
 
-async function renderProblemDetail(id) {
+async function renderAdminProblemDetail(id) {
   app.innerHTML = `<div class="detail-card"><p>Loading problem...</p></div>`;
   try {
     const [problem, problemStats] = await Promise.all([

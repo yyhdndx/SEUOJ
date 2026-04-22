@@ -15,6 +15,7 @@
   runResultHeight: Number(localStorage.getItem("seuoj_run_result_height")) || 180,
   contestPollTimer: null,
   runResultUIAbort: null,
+  problemCodeEditor: null,
 };
 
 const submissionLanguageOptions = [
@@ -267,6 +268,10 @@ function getHashQueryParams() {
 }
 
 async function renderRoute() {
+  if (state.problemCodeEditor) {
+    state.problemCodeEditor.destroy();
+    state.problemCodeEditor = null;
+  }
   stopSubmissionPolling();
   stopSubmissionsPolling();
   stopContestPolling();
