@@ -20,23 +20,46 @@ function canModerateForum() {
 }
 
 function forumStatusPills(topic) {
-  const pills = [`<span class="status-pill status-neutral">${escapeHTML(forumScopeLabel(topic.scope_type, topic.scope_id))}</span>`];
+  const pills = [];
+  const scopeLabel = forumScopeLabel(topic.scope_type, topic.scope_id);
+  const scopeHref = forumScopeLink(topic.scope_type, topic.scope_id);
+  pills.push(`<a class="status-pill status-neutral forum-scope-pill" href="${scopeHref}">${escapeHTML(scopeLabel)}</a>`);
   if (topic.is_pinned) pills.push(`<span class="status-pill status-accepted">Pinned</span>`);
   if (topic.is_locked) pills.push(`<span class="status-pill status-pending">Locked</span>`);
-  pills.push(`<span class="status-pill status-neutral">${topic.reply_count} replies</span>`);
   return pills.join("");
 }
 
-function renderForumSummaryCards(list, scopeType) {
-  const total = list.length;
+function forumMetaLine(topic) {
+  const created = topic.created_at ? escapeHTML(topic.created_at) : "-";
+  const lastReply = topic.last_reply_at ? escapeHTML(topic.last_reply_at) : "-";
+  return `
+    <div class="forum-topic-meta">
+      <span class="forum-meta-item"><strong>${escapeHTML(topic.author_name || "-")}</strong></span>
+      <span class="forum-meta-sep">·</span>
+      <span class="forum-meta-item">created <span class="mono">${created}</span></span>
+      <span class="forum-meta-sep">·</span>
+      <span class="forum-meta-item">last reply <span class="mono">${lastReply}</span></span>
+    </div>
+  `;
+}
+
+function forumStatsPills(topic) {
+  const replies = Number(topic.reply_count) || 0;
+  return `<span class="status-pill status-neutral">${replies} repl${replies === 1 ? "y" : "ies"}</span>`;
+}
+
+function renderForumSummaryCards(result, scopeType, scopeID) {
+  const list = result?.list || [];
+  const total = Number(result?.total ?? list.length) || 0;
   const pinned = list.filter((item) => item.is_pinned).length;
   const locked = list.filter((item) => item.is_locked).length;
   const active = list.filter((item) => item.reply_count > 0).length;
+  const scopeLabel = scopeType ? forumScopeLabel(scopeType, scopeID || null) : "All Topics";
   return `
     <div class="forum-summary-grid">
       <article class="forum-summary-card">
-        <span class="forum-summary-label">Scope</span>
-        <strong class="forum-summary-value">${escapeHTML(scopeType ? forumScopeLabel(scopeType) : "All Topics")}</strong>
+        <span class="forum-summary-label">Zone</span>
+        <strong class="forum-summary-value">${escapeHTML(scopeLabel)}</strong>
       </article>
       <article class="forum-summary-card">
         <span class="forum-summary-label">Topics</span>
@@ -66,18 +89,23 @@ function renderForumTopicCards(list) {
     <div class="forum-topic-list">
       ${list.map((item) => `
         <article class="forum-topic-card ${item.is_pinned ? "pinned" : ""} ${item.is_locked ? "locked" : ""}">
-          <div class="view-header compact">
-            <div>
-              <h3 class="forum-topic-title"><a class="table-link" href="#/forum/topics/${item.id}">${escapeHTML(item.title)}</a></h3>
-              <p class="view-subtitle">${escapeHTML(item.author_name)} · ${escapeHTML(item.created_at)}${item.last_reply_at ? ` · last reply ${escapeHTML(item.last_reply_at)}` : ""}</p>
+          <div class="forum-topic-head">
+            <div class="forum-topic-head-main">
+              <div class="forum-topic-title-row">
+                <h3 class="forum-topic-title"><a class="table-link" href="#/forum/topics/${item.id}">${escapeHTML(item.title)}</a></h3>
+              </div>
+              ${forumMetaLine(item)}
+              <div class="pill-row forum-topic-pill-row">
+                ${forumStatusPills(item)}
+                ${forumStatsPills(item)}
+              </div>
             </div>
-            <div class="pill-row">${forumStatusPills(item)}</div>
+            <div class="forum-topic-head-actions">
+              <a class="ghost-button" href="#/forum/topics/${item.id}">View</a>
+              <a class="ghost-button" href="#/forum?scope_type=${encodeURIComponent(item.scope_type || "")}${item.scope_id ? `&scope_id=${encodeURIComponent(item.scope_id)}` : ""}">More in Zone</a>
+            </div>
           </div>
-          <p class="forum-topic-preview">${escapeHTML(item.content_preview || "")}</p>
-          <div class="forum-topic-footer">
-            <a class="ghost-button" href="${forumScopeLink(item.scope_type, item.scope_id)}">Open Scope</a>
-            <a class="ghost-button" href="#/forum/topics/${item.id}">View Topic</a>
-          </div>
+          ${item.content_preview ? `<p class="forum-topic-preview">${escapeHTML(item.content_preview || "")}</p>` : ""}
         </article>
       `).join("")}
     </div>
@@ -100,7 +128,23 @@ async function renderForum() {
     if (scopeID) params.set("scope_id", scopeID);
     const topics = await apiFetch(`/forum/topics?${params.toString()}`, { method: "GET" });
     const topicList = topics.list || [];
-    const scopeHint = scopeType ? `Current scope: ${forumScopeLabel(scopeType, scopeID || null)}` : "General discussion across contests, problems, and training topics.";
+
+    const scopeHint = scopeType
+      ? `Current zone: ${forumScopeLabel(scopeType, scopeID || null)}`
+      : "General discussion across contests, problems, and training topics.";
+
+    const tabHref = (nextScopeType) => {
+      const next = new URLSearchParams();
+      if (keyword) next.set("keyword", keyword);
+      if (nextScopeType) next.set("scope_type", nextScopeType);
+      if ((nextScopeType === scopeType) && scopeID) {
+        next.set("scope_id", scopeID);
+      }
+      next.set("page", "1");
+      next.set("page_size", String(pageSize));
+      const qs = next.toString();
+      return qs ? `#/forum?${qs}` : "#/forum";
+    };
 
     app.innerHTML = `
       <div class="view-header">
@@ -109,37 +153,48 @@ async function renderForum() {
           <p class="view-subtitle">${escapeHTML(scopeHint)}</p>
         </div>
       </div>
-      ${renderForumSummaryCards(topicList, scopeType)}
+      ${renderForumSummaryCards(topics, scopeType, scopeID)}
       <section class="detail-grid" style="margin-top:18px; align-items:start;">
         <article class="detail-card forum-panel-card">
           <div class="view-header compact">
             <div>
-              <h3>Browse Topics</h3>
-              <p class="view-subtitle">Filter discussion by scope or keyword.</p>
+              <h3>Zones & Search</h3>
+              <p class="view-subtitle">Filter topics by zone (general / problem / contest) and keyword.</p>
             </div>
-            <div class="pill-row forum-scope-tabs">
-              <a class="ghost-button ${!scopeType ? "active-filter" : ""}" href="#/forum">All</a>
-              <a class="ghost-button ${scopeType === "general" ? "active-filter" : ""}" href="#/forum?scope_type=general">General</a>
-              <a class="ghost-button ${scopeType === "problem" ? "active-filter" : ""}" href="#/forum?scope_type=problem${scopeID ? `&scope_id=${scopeID}` : ""}">Problem</a>
-              <a class="ghost-button ${scopeType === "contest" ? "active-filter" : ""}" href="#/forum?scope_type=contest${scopeID ? `&scope_id=${scopeID}` : ""}">Contest</a>
+            <div class="pill-row forum-scope-tabs" aria-label="Forum zones">
+              <a class="ghost-button ${!scopeType ? "active-filter" : ""}" href="${tabHref("")}">All</a>
+              <a class="ghost-button ${scopeType === "general" ? "active-filter" : ""}" href="${tabHref("general")}">General</a>
+              <a class="ghost-button ${scopeType === "problem" ? "active-filter" : ""}" href="${tabHref("problem")}">Problem</a>
+              <a class="ghost-button ${scopeType === "contest" ? "active-filter" : ""}" href="${tabHref("contest")}">Contest</a>
             </div>
           </div>
           <form id="forum-filter-form" class="forum-filter-form">
-            <label class="field-label">Keyword</label>
-            <input class="text-input" name="keyword" value="${escapeHTML(keyword)}" placeholder="Search title or content" />
-            <label class="field-label">Scope Type</label>
-            <select class="select-input" name="scope_type">
-              <option value="" ${!scopeType ? "selected" : ""}>all</option>
-              <option value="general" ${scopeType === "general" ? "selected" : ""}>general</option>
-              <option value="problem" ${scopeType === "problem" ? "selected" : ""}>problem</option>
-              <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
-            </select>
-            <label class="field-label">Scope ID</label>
-            <input class="text-input" name="scope_id" value="${escapeHTML(scopeID)}" placeholder="optional" />
-            <div class="forum-filter-actions">
-              <button class="primary-button" type="submit">Apply</button>
-              <a class="ghost-button" href="#/forum">Reset</a>
+            <div class="forum-filter-grid">
+              <div class="forum-filter-field keyword">
+                <label class="field-label">Keyword</label>
+                <input class="text-input" name="keyword" value="${escapeHTML(keyword)}" placeholder="Search title or content" />
+              </div>
+              <div class="forum-filter-field type">
+                <label class="field-label">Zone</label>
+                <select class="select-input" name="scope_type">
+                  <option value="" ${!scopeType ? "selected" : ""}>all</option>
+                  <option value="general" ${scopeType === "general" ? "selected" : ""}>general</option>
+                  <option value="problem" ${scopeType === "problem" ? "selected" : ""}>problem</option>
+                  <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
+                </select>
+              </div>
+              <div class="forum-filter-field id">
+                <label class="field-label">Zone ID <span class="view-subtitle" style="display:inline;">(optional)</span></label>
+                <input class="text-input" name="scope_id" value="${escapeHTML(scopeID)}" placeholder="problem_id / contest_id" />
+              </div>
+              <div class="forum-filter-field actions">
+                <div class="forum-filter-actions">
+                  <button class="primary-button" type="submit">Search</button>
+                  <a class="ghost-button" href="#/forum">Reset</a>
+                </div>
+              </div>
             </div>
+            <p class="view-subtitle" style="margin:10px 0 0;">Tip: open a problem or contest and click <strong>Discuss</strong> to jump into its zone automatically.</p>
           </form>
         </article>
         <aside class="detail-card forum-panel-card">
@@ -153,13 +208,13 @@ async function renderForum() {
             <form id="forum-create-form">
               <label class="field-label">Title</label>
               <input class="text-input" name="title" required />
-              <label class="field-label">Scope Type</label>
+              <label class="field-label">Zone</label>
               <select class="select-input" name="scope_type">
                 <option value="general" ${scopeType === "general" || !scopeType ? "selected" : ""}>general</option>
                 <option value="problem" ${scopeType === "problem" ? "selected" : ""}>problem</option>
                 <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
               </select>
-              <label class="field-label">Scope ID</label>
+              <label class="field-label">Zone ID</label>
               <input class="text-input" name="scope_id" value="${escapeHTML(scopeID)}" placeholder="required for problem/contest" />
               <label class="field-label">Content</label>
               <textarea class="text-area" name="content" rows="10" required></textarea>
@@ -185,6 +240,12 @@ async function renderForum() {
       next.set("page", "1");
       next.set("page_size", String(pageSize));
       location.hash = `#/forum?${next.toString()}`;
+    });
+
+    document.querySelector("#forum-filter-form input[name=keyword]")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      document.getElementById("forum-filter-form")?.dispatchEvent(new Event("submit", { cancelable: true }));
     });
 
     document.getElementById("forum-create-form")?.addEventListener("submit", async (event) => {
@@ -403,4 +464,3 @@ async function renderForumTopicDetail(id) {
     app.innerHTML = `<div class="detail-card"><p>Load forum topic failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
-
