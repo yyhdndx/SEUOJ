@@ -92,6 +92,7 @@ async function renderProblemDetail(id) {
             </div>
             <div class="pill-row">
               <span class="status-pill status-neutral">${escapeHTML(problem.judge_mode)}</span>
+              <a class="ghost-button" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
             </div>
           </div>
           <div class="pane-content">
@@ -629,5 +630,3 @@ function renderProblemRecentSubmissions(problemID, submissions, contestID = null
     </div>
   `;
 }
-
-

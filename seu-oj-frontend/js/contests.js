@@ -218,6 +218,7 @@ async function renderContestDetail(id) {
           <span class="status-pill ${contestStatusClass(contest.status)}">${escapeHTML(contest.status)}</span>
           ${contest.allow_practice ? `<span class="status-pill status-neutral">practice</span>` : ""}
           ${contest.ranklist_frozen ? `<span class="status-pill status-pending">frozen</span>` : contest.ranklist_freeze_at ? `<span class="status-pill status-neutral">freeze set</span>` : ""}
+          <a class="ghost-button" href="#/forum?scope_type=contest&scope_id=${encodeURIComponent(contest.id)}">Discuss</a>
           ${state.token && me?.can_register ? `<button class="primary-button" id="contest-register-btn">Register</button>` : ""}
           ${me?.can_view_problems ? `<a class="ghost-button" href="#/contests/${id}?tab=problems">Problems</a>` : ""}
         </div>
@@ -651,6 +652,11 @@ async function renderAdminContestEdit(id) {
     app.innerHTML = `<div class="detail-card"><p>Only admin can edit contests.</p></div>`;
     return;
   }
+  // 参数校验：id 必须为正整数，否则跳转到新建比赛页面
+  if (!/^[0-9]+$/.test(String(id))) {
+    location.hash = "#/admin/contests/new";
+    return;
+  }
   try {
     const detail = await apiFetch(`/admin/contests/${id}`, { method: "GET" });
     return renderAdminContestForm(id, detail);
@@ -667,7 +673,8 @@ async function renderAdminContestForm(id, initial) {
 
   app.innerHTML = `<div class="detail-card"><p>Loading contest form...</p></div>`;
   try {
-    const problemsData = await apiFetch("/admin/problems?page=1&page_size=200&include_hidden=true", { method: "GET" });
+    // Backend enforces page_size <= 100 (dto.AdminProblemListQuery), so keep it within limit.
+    const problemsData = await apiFetch("/admin/problems?page=1&page_size=100&include_hidden=true", { method: "GET" });
     const problems = problemsData.list || [];
     const initialProblems = (initial?.problems && initial.problems.length)
       ? initial.problems
@@ -1550,12 +1557,3 @@ function renderContestStatusBreakdown(contests) {
     </div>
   `;
 }
-
-
-
-
-
-
-
-
-
