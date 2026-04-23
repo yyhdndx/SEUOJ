@@ -71,6 +71,7 @@ function persistAuth(token, user) {
 
 async function bootstrapApp() {
   try {
+    initNavMenus();
     renderAccount();
     updateNavActive();
     if (state.token && !state.user) {
@@ -83,6 +84,21 @@ async function bootstrapApp() {
   } catch (err) {
     renderFatalError(err, "startup");
   }
+}
+
+function initNavMenus() {
+  document.querySelectorAll(".nav-menu-panel").forEach((panel) => {
+    panel.addEventListener("click", (event) => {
+      const link = event.target.closest("a");
+      if (!link) {
+        return;
+      }
+      const menu = link.closest("details");
+      if (menu) {
+        menu.open = false;
+      }
+    });
+  });
 }
 
 async function renderRouteSafely() {
