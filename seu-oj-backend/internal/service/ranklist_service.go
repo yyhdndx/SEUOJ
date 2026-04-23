@@ -1,23 +1,34 @@
-﻿package service
+package service
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 )
 
 type RanklistService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *cache.Cache
 }
 
-func NewRanklistService(db *gorm.DB) *RanklistService {
-	return &RanklistService{db: db}
+func NewRanklistService(db *gorm.DB, cacheStore *cache.Cache) *RanklistService {
+	return &RanklistService{db: db, cache: cacheStore}
 }
 
 func (s *RanklistService) List(page, pageSize int) (*dto.RanklistResponse, error) {
+	key := fmt.Sprintf("cache:ranklist:list:p%d:s%d", page, pageSize)
+	return cache.GetOrSet(context.Background(), s.cache, key, 20*time.Second, func() (*dto.RanklistResponse, error) {
+		return s.list(page, pageSize)
+	})
+}
+
+func (s *RanklistService) list(page, pageSize int) (*dto.RanklistResponse, error) {
 	if page <= 0 {
 		page = 1
 	}

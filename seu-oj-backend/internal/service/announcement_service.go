@@ -1,11 +1,15 @@
-﻿package service
+package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 )
@@ -13,14 +17,22 @@ import (
 var ErrAnnouncementNotFound = errors.New("announcement not found")
 
 type AnnouncementService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *cache.Cache
 }
 
-func NewAnnouncementService(db *gorm.DB) *AnnouncementService {
-	return &AnnouncementService{db: db}
+func NewAnnouncementService(db *gorm.DB, cacheStore *cache.Cache) *AnnouncementService {
+	return &AnnouncementService{db: db, cache: cacheStore}
 }
 
 func (s *AnnouncementService) List(page, pageSize int) (*dto.AnnouncementListResponse, error) {
+	key := fmt.Sprintf("cache:announcements:list:p%d:s%d", page, pageSize)
+	return cache.GetOrSet(context.Background(), s.cache, key, 30*time.Second, func() (*dto.AnnouncementListResponse, error) {
+		return s.list(page, pageSize)
+	})
+}
+
+func (s *AnnouncementService) list(page, pageSize int) (*dto.AnnouncementListResponse, error) {
 	var list []model.Announcement
 	var total int64
 	query := s.db.Model(&model.Announcement{})
@@ -35,6 +47,13 @@ func (s *AnnouncementService) List(page, pageSize int) (*dto.AnnouncementListRes
 }
 
 func (s *AnnouncementService) GetByID(id uint64) (*dto.AnnouncementItem, error) {
+	key := fmt.Sprintf("cache:announcements:detail:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 60*time.Second, func() (*dto.AnnouncementItem, error) {
+		return s.getByID(id)
+	})
+}
+
+func (s *AnnouncementService) getByID(id uint64) (*dto.AnnouncementItem, error) {
 	var item model.Announcement
 	if err := s.db.First(&item, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -59,6 +78,7 @@ func (s *AnnouncementService) Create(userID uint64, role string, req dto.CreateA
 	if err := s.db.Create(&item).Error; err != nil {
 		return 0, err
 	}
+	s.invalidate()
 	return item.ID, nil
 }
 
@@ -76,14 +96,26 @@ func (s *AnnouncementService) Update(role string, id uint64, req dto.CreateAnnou
 	item.Title = strings.TrimSpace(req.Title)
 	item.Content = req.Content
 	item.IsPinned = req.IsPinned
-	return s.db.Save(&item).Error
+	if err := s.db.Save(&item).Error; err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *AnnouncementService) Delete(role string, id uint64) error {
 	if role != "admin" {
 		return ErrPermissionDenied
 	}
-	return s.db.Delete(&model.Announcement{}, id).Error
+	if err := s.db.Delete(&model.Announcement{}, id).Error; err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
+}
+
+func (s *AnnouncementService) invalidate() {
+	s.cache.DeletePrefixes(context.Background(), "cache:announcements:")
 }
 
 func toAnnouncementListResponse(list []model.Announcement, total int64, page, pageSize int) *dto.AnnouncementListResponse {

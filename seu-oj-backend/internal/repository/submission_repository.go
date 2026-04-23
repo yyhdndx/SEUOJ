@@ -30,7 +30,16 @@ func (r *SubmissionRepository) ListByUserID(userID uint64, page, pageSize int, p
 	return r.List(page, pageSize, &userID, problemID, contestID, status)
 }
 
+func (r *SubmissionRepository) ListRecentByUserID(userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) ([]model.Submission, error) {
+	submissions, _, err := r.list(page, pageSize, &userID, problemID, contestID, status, false)
+	return submissions, err
+}
+
 func (r *SubmissionRepository) List(page, pageSize int, userID *uint64, problemID *uint64, contestID *uint64, status *string) ([]model.Submission, int64, error) {
+	return r.list(page, pageSize, userID, problemID, contestID, status, true)
+}
+
+func (r *SubmissionRepository) list(page, pageSize int, userID *uint64, problemID *uint64, contestID *uint64, status *string, countTotal bool) ([]model.Submission, int64, error) {
 	var submissions []model.Submission
 	var total int64
 
@@ -48,8 +57,10 @@ func (r *SubmissionRepository) List(page, pageSize int, userID *uint64, problemI
 		query = query.Where("status = ?", *status)
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+	if countTotal {
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	offset := (page - 1) * pageSize

@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 	"seu-oj-backend/internal/queue"
@@ -29,6 +32,7 @@ type SubmissionService struct {
 	judgeQueue           *queue.JudgeQueue
 	sandboxRunner        *sandbox.Runner
 	contestService       *ContestService
+	cache                *cache.Cache
 }
 
 func NewSubmissionService(
@@ -40,6 +44,7 @@ func NewSubmissionService(
 	judgeQueue *queue.JudgeQueue,
 	sandboxRunner *sandbox.Runner,
 	contestService *ContestService,
+	cacheStore *cache.Cache,
 ) *SubmissionService {
 	return &SubmissionService{
 		db:                   db,
@@ -50,6 +55,7 @@ func NewSubmissionService(
 		judgeQueue:           judgeQueue,
 		sandboxRunner:        sandboxRunner,
 		contestService:       contestService,
+		cache:                cacheStore,
 	}
 }
 
@@ -90,6 +96,7 @@ func (s *SubmissionService) CreateSubmission(userID uint64, role string, req dto
 	if err := s.submissionRepo.Create(&submission); err != nil {
 		return 0, "", err
 	}
+	s.invalidateSubmissionCaches(userID, req.ContestID, submission.ID)
 
 	if err := s.judgeQueue.EnqueueSubmission(context.Background(), submission.ID); err != nil {
 		return 0, "", ErrQueueEnqueueFailed
@@ -98,7 +105,60 @@ func (s *SubmissionService) CreateSubmission(userID uint64, role string, req dto
 	return submission.ID, submission.Status, nil
 }
 
-func (s *SubmissionService) ListMySubmissions(userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) (*dto.SubmissionListResponse, error) {
+func (s *SubmissionService) ListMySubmissions(ctx context.Context, userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) (*dto.SubmissionListResponse, error) {
+	if isUnfilteredRecentSubmissionQuery(page, pageSize, problemID, contestID, status) {
+		return s.listRecentMySubmissions(ctx, userID, pageSize)
+	}
+
+	key := fmt.Sprintf(
+		"cache:submissions:user:%d:list:p%d:s%d:problem:%s:contest:%s:status:%s",
+		userID,
+		page,
+		pageSize,
+		uintFilterKey(problemID),
+		uintFilterKey(contestID),
+		stringFilterKey(status),
+	)
+	return cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionListResponse, error) {
+		return s.listMySubmissions(userID, page, pageSize, problemID, contestID, status)
+	})
+}
+
+func (s *SubmissionService) listRecentMySubmissions(ctx context.Context, userID uint64, pageSize int) (*dto.SubmissionListResponse, error) {
+	const cachedLimit = 100
+	key := fmt.Sprintf("cache:submissions:user:%d:recent:limit%d", userID, cachedLimit)
+	cached, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionListResponse, error) {
+		submissions, err := s.submissionRepo.ListRecentByUserID(userID, 1, cachedLimit, nil, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		return toSubmissionListResponse(submissions, int64(len(submissions)), 1, cachedLimit), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := cached.List
+	if len(items) > pageSize {
+		items = items[:pageSize]
+	}
+	return &dto.SubmissionListResponse{
+		List:     items,
+		Total:    int64(len(cached.List)),
+		Page:     1,
+		PageSize: pageSize,
+	}, nil
+}
+
+func (s *SubmissionService) listMySubmissions(userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) (*dto.SubmissionListResponse, error) {
+	if page == 1 && pageSize <= 20 {
+		submissions, err := s.submissionRepo.ListRecentByUserID(userID, page, pageSize, problemID, contestID, status)
+		if err != nil {
+			return nil, err
+		}
+		return toSubmissionListResponse(submissions, int64(len(submissions)), page, pageSize), nil
+	}
+
 	submissions, total, err := s.submissionRepo.ListByUserID(userID, page, pageSize, problemID, contestID, status)
 	if err != nil {
 		return nil, err
@@ -118,16 +178,27 @@ func (s *SubmissionService) ListSubmissions(requestRole string, page, pageSize i
 	return toSubmissionListResponse(submissions, total, page, pageSize), nil
 }
 
-func (s *SubmissionService) GetSubmissionDetail(requestUserID uint64, requestRole string, submissionID uint64) (*dto.SubmissionDetailResponse, error) {
+func (s *SubmissionService) GetSubmissionDetail(ctx context.Context, requestUserID uint64, requestRole string, submissionID uint64) (*dto.SubmissionDetailResponse, error) {
+	key := fmt.Sprintf("cache:submissions:detail:%d", submissionID)
+	result, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionDetailResponse, error) {
+		return s.getSubmissionDetail(submissionID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if requestRole != "admin" && result.UserID != requestUserID {
+		return nil, ErrSubmissionForbidden
+	}
+	return result, nil
+}
+
+func (s *SubmissionService) getSubmissionDetail(submissionID uint64) (*dto.SubmissionDetailResponse, error) {
 	submission, err := s.submissionRepo.GetByID(submissionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubmissionNotFound
 		}
 		return nil, err
-	}
-	if requestRole != "admin" && submission.UserID != requestUserID {
-		return nil, ErrSubmissionForbidden
 	}
 
 	results, err := s.submissionResultRepo.ListBySubmissionID(submission.ID)
@@ -199,12 +270,47 @@ func (s *SubmissionService) RejudgeSubmission(requestRole string, submissionID u
 	if err != nil {
 		return 0, "", err
 	}
+	s.invalidateSubmissionCaches(submission.UserID, submission.ContestID, submission.ID)
 
 	if err := s.judgeQueue.EnqueueSubmission(context.Background(), submission.ID); err != nil {
 		return 0, "", ErrQueueEnqueueFailed
 	}
 
 	return submission.ID, submission.Status, nil
+}
+
+func (s *SubmissionService) invalidateSubmissionCaches(userID uint64, contestID *uint64, submissionID uint64) {
+	prefixes := []string{
+		"cache:stats:",
+		"cache:ranklist:",
+		"cache:problems:stats:",
+		fmt.Sprintf("cache:submissions:user:%d:", userID),
+	}
+	if submissionID > 0 {
+		prefixes = append(prefixes, fmt.Sprintf("cache:submissions:detail:%d", submissionID))
+	}
+	if contestID != nil {
+		prefixes = append(prefixes, "cache:contests:ranklist:")
+	}
+	s.cache.DeletePrefixes(context.Background(), prefixes...)
+}
+
+func isUnfilteredRecentSubmissionQuery(page, pageSize int, problemID *uint64, contestID *uint64, status *string) bool {
+	return page == 1 && pageSize <= 100 && problemID == nil && contestID == nil && (status == nil || *status == "")
+}
+
+func uintFilterKey(value *uint64) string {
+	if value == nil {
+		return "all"
+	}
+	return fmt.Sprintf("%d", *value)
+}
+
+func stringFilterKey(value *string) string {
+	if value == nil || *value == "" {
+		return "all"
+	}
+	return *value
 }
 
 func toSubmissionListResponse(submissions []model.Submission, total int64, page, pageSize int) *dto.SubmissionListResponse {
