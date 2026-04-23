@@ -74,6 +74,7 @@ async function renderProblemDetail(id) {
     if (!state.runResult || state.runResult.problemID !== problem.id || state.runResult.contestID) {
       state.runResult = null;
     }
+    state.runResultPending = false;
     const draft = readSubmissionDraft(problem.id);
     const selectedLanguage = draft?.language || "cpp";
     const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
@@ -81,45 +82,58 @@ async function renderProblemDetail(id) {
       ? problem.testcases.filter((item) => item.case_type === "sample")
       : [];
     const recentSubmissions = state.token ? await loadRecentProblemSubmissions(problem.id) : [];
+    const currentTab = state.problemDetailTab || "description";
+    const difficulty = getProblemDifficulty(problem);
+    const indentSize = getEditorIndentSize();
 
     app.innerHTML = `
       <section class="problem-workbench resizable" id="problem-workbench" style="--problem-pane-width:${state.workbenchLeftWidth}%;">
         <article class="problem-pane">
           <div class="pane-header">
-            <div>
-              <h2 class="pane-title">${escapeHTML(problem.title)}</h2>
-              <p class="view-subtitle">#${problem.id} / ${escapeHTML(problem.display_id || "-")} / ${escapeHTML(problem.judge_mode)}</p>
-            </div>
-            <div class="pill-row">
-              <span class="status-pill status-neutral">${escapeHTML(problem.judge_mode)}</span>
-              <a class="ghost-button" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
+            <div class="problem-heading">
+              <div class="problem-heading-meta">
+                <span class="problem-display-id">${escapeHTML(problem.display_id || `Problem ${problem.id}`)}</span>
+                <span class="problem-meta-separator" aria-hidden="true"></span>
+                <span>${escapeHTML(problem.judge_mode || "Standard")}</span>
+              </div>
+              <h1 class="pane-title problem-title">${escapeHTML(problem.title)}</h1>
+              <div class="problem-meta-row">
+                <span class="problem-meta-chip ${difficulty.className}">${escapeHTML(difficulty.label)}</span>
+                <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
+                <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
+              </div>
             </div>
           </div>
           <div class="pane-content">
-            ${renderProblemBlock("Description", problem.description)}
-            ${renderProblemBlock("Input", problem.input_desc)}
-            ${renderProblemBlock("Output", problem.output_desc)}
-            ${renderProblemCodeBlock("Sample Input", problem.sample_input)}
-            ${renderProblemCodeBlock("Sample Output", problem.sample_output)}
-            ${sampleCases.length ? `
-              <div class="detail-block">
-                <h3>Sample Testcases</h3>
-                <p class="view-subtitle">${sampleCases.length} sample case(s) are available.</p>
-                ${renderSampleCaseList(sampleCases)}
-              </div>
-            ` : ""}
-            ${renderProblemStats(problemStats)}
-            ${renderProblemBlock("Source / Hint", `${problem.source || ""}\n${problem.hint || ""}`.trim())}
-            ${renderProblemSolutions(problem.solutions, problem.id)}
-            ${renderProblemRecentSubmissions(problem.id, recentSubmissions)}
+            <div class="problem-tabs" role="tablist" aria-label="Problem sections">
+              ${renderProblemTabButton("description", "Description", currentTab)}
+              ${renderProblemTabButton("solutions", "Solutions", currentTab)}
+              ${renderProblemTabButton("submissions", "Submission History", currentTab)}
+            </div>
+            <section class="problem-tab-panel ${currentTab === "description" ? "is-active" : ""}" data-problem-panel="description" role="tabpanel">
+              ${renderProblemBlock("", problem.description)}
+              ${renderProblemBlock("Input", problem.input_desc)}
+              ${renderProblemBlock("Output", problem.output_desc)}
+              ${renderProblemCodeBlock("Sample Input", problem.sample_input)}
+              ${renderProblemCodeBlock("Sample Output", problem.sample_output)}
+              ${renderProblemStats(problemStats)}
+              ${renderProblemBlock("Source / Hint", `${problem.source || ""}\n${problem.hint || ""}`.trim())}
+            </section>
+            <section class="problem-tab-panel ${currentTab === "solutions" ? "is-active" : ""}" data-problem-panel="solutions" role="tabpanel">
+              ${renderProblemSolutions(problem.solutions, problem.id)}
+            </section>
+            <section class="problem-tab-panel ${currentTab === "submissions" ? "is-active" : ""}" data-problem-panel="submissions" role="tabpanel">
+              ${renderProblemRecentSubmissions(problem.id, recentSubmissions)}
+            </section>
           </div>
         </article>
         <div class="workbench-divider" id="workbench-divider" aria-hidden="true"></div>
         <aside class="editor-pane">
           <div class="pane-content">
           <form id="submit-form" class="editor-form">
+            ${renderProblemEditorLoadNotice()}
             <div class="editor-surface">
-              <textarea class="text-area" id="problem-code-editor" name="code" placeholder="#include <iostream>...">${escapeHTML(initialCode)}</textarea>
+              <textarea class="text-area" id="problem-code-editor" name="code" data-language="${escapeHTML(selectedLanguage)}" data-indent-size="${indentSize}" placeholder="#include <iostream>..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${escapeHTML(initialCode)}</textarea>
             </div>
             <div class="editor-bottom-stack">
               <div class="editor-submit-strip">
@@ -130,13 +144,19 @@ async function renderProblemDetail(id) {
                       <option value="${value}" ${selectedLanguage === value ? "selected" : ""}>${escapeHTML(label)}</option>
                     `).join("")}
                   </select>
+                  <label class="submit-language-label" for="problem-indent-size">Indent</label>
+                  <select class="select-input submit-language-select" id="problem-indent-size">
+                    ${[2, 4].map((size) => `
+                      <option value="${size}" ${indentSize === size ? "selected" : ""}>${size} spaces</option>
+                    `).join("")}
+                  </select>
                 </div>
                 <div class="submit-action-group">
                   <button class="ghost-button submit-compact-button" type="button" id="run-sample-btn">Run</button>
                   <button class="primary-button submit-compact-button" type="submit">Submit</button>
                 </div>
               </div>
-              ${renderRunResultPanel()}
+              <div id="run-result-slot">${renderRunResultPanel()}</div>
             </div>
           </form>
           </div>
@@ -146,17 +166,33 @@ async function renderProblemDetail(id) {
 
     initProblemWorkbenchUI();
     initRunResultUI();
+    initProblemDetailTabs();
 
     const codeEditor = document.getElementById("problem-code-editor");
+    await mountProblemCodeEditor(codeEditor);
+    state.problemCodeEditor?.focus();
+
     const languageSelect = document.getElementById("problem-language-select");
+    const indentSizeSelect = document.getElementById("problem-indent-size");
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
       const previousTemplate = getDefaultCodeTemplate(currentLanguage);
       if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
+        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
+        if (state.problemCodeEditor) {
+          state.problemCodeEditor.setValue(nextTemplate);
+        } else {
+          codeEditor.value = nextTemplate;
+        }
       }
       currentLanguage = nextLanguage;
+      state.problemCodeEditor?.setLanguage(nextLanguage);
+    });
+    indentSizeSelect?.addEventListener("change", (event) => {
+      const nextSize = Number(event.currentTarget.value) || 4;
+      localStorage.setItem("seuoj_editor_indent_size", String(nextSize));
+      state.problemCodeEditor?.setIndentSize(nextSize);
     });
 
     document.getElementById("run-sample-btn").addEventListener("click", async () => {
@@ -170,6 +206,8 @@ async function renderProblemDetail(id) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      state.runResultPending = true;
+      refreshRunResultPanel();
 
       try {
         const result = await apiFetch("/submissions/run", {
@@ -180,9 +218,12 @@ async function renderProblemDetail(id) {
             code,
           }),
         });
+        state.runResultPending = false;
         state.runResult = { problemID: problem.id, contestID: null, ...result };
-        renderProblemDetail(problem.id);
+        refreshRunResultPanel();
       } catch (err) {
+        state.runResultPending = false;
+        refreshRunResultPanel();
         setFlash(err.message, true);
       }
     });
@@ -217,6 +258,71 @@ async function renderProblemDetail(id) {
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load problem failed: ${escapeHTML(err.message)}</p></div>`;
   }
+}
+
+function getProblemDifficulty(problem) {
+  const rawDifficulty = [
+    problem?.difficulty,
+    problem?.difficulty_label,
+    problem?.level,
+    problem?.level_name,
+  ].find((value) => value !== undefined && value !== null && String(value).trim());
+  const normalized = String(rawDifficulty || "Unknown").trim();
+  const lower = normalized.toLowerCase();
+  let className = "status-neutral";
+  if (lower.includes("easy")) {
+    className = "status-accepted";
+  } else if (lower.includes("medium")) {
+    className = "status-pending";
+  } else if (lower.includes("hard")) {
+    className = "status-wrong";
+  }
+  return {
+    label: normalized,
+    className,
+  };
+}
+
+function renderProblemTabButton(key, label, activeTab) {
+  const isActive = key === activeTab;
+  return `
+    <button
+      type="button"
+      class="problem-tab ${isActive ? "is-active" : ""}"
+      data-problem-tab="${key}"
+      role="tab"
+      aria-selected="${isActive ? "true" : "false"}"
+    >${escapeHTML(label)}</button>
+  `;
+}
+
+function initProblemDetailTabs() {
+  const tabs = Array.from(document.querySelectorAll("[data-problem-tab]"));
+  if (!tabs.length) {
+    return;
+  }
+
+  const panels = Array.from(document.querySelectorAll("[data-problem-panel]"));
+  const setActiveTab = (nextTab) => {
+    state.problemDetailTab = nextTab;
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.problemTab === nextTab;
+      tab.classList.toggle("is-active", isActive);
+      tab.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.problemPanel === nextTab);
+    });
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => setActiveTab(tab.dataset.problemTab));
+  });
+}
+
+function getEditorIndentSize() {
+  const raw = Number(localStorage.getItem("seuoj_editor_indent_size"));
+  return raw === 2 ? 2 : 4;
 }
 
 function initProblemWorkbenchUI() {
@@ -266,6 +372,13 @@ function initRunResultUI() {
     return;
   }
 
+  if (state.runResultUIAbort) {
+    state.runResultUIAbort.abort();
+  }
+  const controller = new AbortController();
+  const { signal } = controller;
+  state.runResultUIAbort = controller;
+
   let dragging = false;
   let startY = 0;
   let startHeight = 0;
@@ -292,17 +405,18 @@ function initRunResultUI() {
     startHeight = panel.getBoundingClientRect().height;
     document.body.style.cursor = "ns-resize";
     document.body.style.userSelect = "none";
-  });
+  }, { signal });
 
-  window.addEventListener("mousemove", onMove);
-  window.addEventListener("mouseup", stopDragging);
-  window.addEventListener("mouseleave", stopDragging);
+  window.addEventListener("mousemove", onMove, { signal });
+  window.addEventListener("mouseup", stopDragging, { signal });
+  window.addEventListener("mouseleave", stopDragging, { signal });
 }
 
 function renderProblemBlock(title, content) {
+  const heading = title ? `<h3>${escapeHTML(title)}</h3>` : "";
   return `
     <div class="detail-block">
-      <h3>${escapeHTML(title)}</h3>
+      ${heading}
       ${renderMarkdownBlock(content)}
     </div>
   `;
@@ -472,43 +586,100 @@ function renderInlineMarkdown(input) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 function renderRunResultPanel() {
-  if (!state.runResult) {
-    return "";
-  }
-
   const result = state.runResult;
+  const statusText = state.runResultPending
+    ? "Running"
+    : (result?.status || "Not Run");
+  const body = state.runResultPending
+    ? `<div class="run-result-empty">Running your code against the sample tests...</div>`
+    : !result
+      ? `<div class="run-result-empty">Click Run to execute your code against the sample tests.</div>`
+      : `
+        ${result.compile_info ? `<pre class="run-result-pre">${escapeHTML(result.compile_info)}</pre>` : ""}
+        ${result.error_message && !result.compile_info ? `<div class="run-result-error">${escapeHTML(result.error_message)}</div>` : ""}
+        ${(result.results || []).map((item, index) => `
+          <div class="run-case-card">
+            <div class="run-case-head">
+              <span>Sample ${index + 1}</span>
+            </div>
+            <div class="run-case-grid">
+              <div>
+                <label class="field-label">Input</label>
+                <pre class="run-result-pre">${escapeHTML(item.input_data || "")}</pre>
+              </div>
+              <div>
+                <label class="field-label">Expected</label>
+                <pre class="run-result-pre">${escapeHTML(item.expected_output || "")}</pre>
+              </div>
+              <div class="full">
+                <label class="field-label">Actual</label>
+                <pre class="run-result-pre">${escapeHTML(item.actual_output || "")}</pre>
+              </div>
+            </div>
+          </div>
+        `).join("") || `<div class="run-result-empty">Run finished, but no sample case details were returned.</div>`}
+      `;
+
   return `
     <div class="run-result-panel" id="run-result-panel" style="height:${state.runResultHeight}px;">
       <div class="run-result-resizer" id="run-result-resizer" aria-hidden="true"></div>
       <div class="run-result-head">
         <strong>Run Result</strong>
-        <span class="status-pill ${statusClass(result.status)}">${escapeHTML(result.status)}</span>
+        <span class="status-pill ${state.runResultPending ? "status-pending" : statusClass(statusText)}">${escapeHTML(statusText)}</span>
       </div>
-      ${result.compile_info ? `<pre class="run-result-pre">${escapeHTML(result.compile_info)}</pre>` : ""}
-      ${result.error_message && !result.compile_info ? `<div class="run-result-error">${escapeHTML(result.error_message)}</div>` : ""}
-      ${(result.results || []).map((item, index) => `
-        <div class="run-case-card">
-          <div class="run-case-head">
-            <span>Sample ${index + 1}</span>
-          </div>
-          <div class="run-case-grid">
-            <div>
-              <label class="field-label">Input</label>
-              <pre class="run-result-pre">${escapeHTML(item.input_data || "")}</pre>
-            </div>
-            <div>
-              <label class="field-label">Expected</label>
-              <pre class="run-result-pre">${escapeHTML(item.expected_output || "")}</pre>
-            </div>
-            <div class="full">
-              <label class="field-label">Actual</label>
-              <pre class="run-result-pre">${escapeHTML(item.actual_output || "")}</pre>
-            </div>
-          </div>
-        </div>
-      `).join("")}
+      ${body}
     </div>
   `;
+}
+
+function refreshRunResultPanel() {
+  const slot = document.getElementById("run-result-slot");
+  const runButton = document.getElementById("run-sample-btn");
+  if (runButton) {
+    runButton.disabled = state.runResultPending;
+    runButton.textContent = state.runResultPending ? "Running..." : "Run";
+  }
+  if (!slot) {
+    return;
+  }
+  slot.innerHTML = renderRunResultPanel();
+  initRunResultUI();
+}
+
+function renderProblemEditorLoadNotice() {
+  if (!window.codeMirrorLoadError) {
+    return "";
+  }
+
+  const message = window.codeMirrorLoadError?.message || String(window.codeMirrorLoadError);
+  return `
+    <div class="run-result-error" style="margin-bottom:8px;">
+      CodeMirror failed to load, so the page is using the plain textarea fallback. ${escapeHTML(message)}
+    </div>
+  `;
+}
+
+async function mountProblemCodeEditor(textarea) {
+  if (!textarea || state.problemCodeEditor) {
+    return state.problemCodeEditor;
+  }
+
+  try {
+    await (window.codeMirrorReadyPromise || Promise.resolve());
+  } catch (error) {
+    setFlash(`CodeMirror load failed: ${error?.message || error}`, true);
+    return null;
+  }
+
+  if (!document.body.contains(textarea) || typeof window.createProblemCodeEditor !== "function") {
+    return null;
+  }
+
+  state.problemCodeEditor = window.createProblemCodeEditor(textarea, {
+    language: textarea.dataset.language || "cpp",
+    indentSize: Number(textarea.dataset.indentSize || getEditorIndentSize()),
+  });
+  return state.problemCodeEditor;
 }
 
 function getDefaultCodeTemplate(language) {

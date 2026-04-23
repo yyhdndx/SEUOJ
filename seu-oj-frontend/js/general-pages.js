@@ -58,7 +58,7 @@ function renderProblemStats(stats) {
         <div class="verdict-summary-card"><span class="status-pill status-neutral">Submissions</span><strong>${stats.submissions_total}</strong></div>
         <div class="verdict-summary-card"><span class="status-pill status-accepted">Accepted</span><strong>${stats.accepted_submissions}</strong></div>
         <div class="verdict-summary-card"><span class="status-pill status-neutral">Accepted Users</span><strong>${stats.accepted_users}</strong></div>
-        <div class="verdict-summary-card"><span class="status-pill status-neutral">Accept Rate</span><strong>${Number(stats.accepted_rate || 0).toFixed(1)}%</strong></div>
+        <div class="verdict-summary-card"><span class="status-pill status-neutral">Accept Rate</span><strong>${(Number(stats.accepted_rate || 0) * 100).toFixed(1)}%</strong></div>
       </div>
       ${renderCountTable(stats.language_breakdown || [], "Language", "Submissions")}
     </div>

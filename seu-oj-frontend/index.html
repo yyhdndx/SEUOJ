@@ -5,6 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SEU OJ</title>
   <link rel="stylesheet" href="./styles.css">
+  <script>
+    window.codeMirrorReadyPromise = new Promise((resolve, reject) => {
+      window.__resolveCodeMirrorReady = resolve;
+      window.__rejectCodeMirrorReady = reject;
+    });
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "codemirror": "./CodeMirror/node_modules/codemirror/dist/index.js",
+        "@codemirror/autocomplete": "./CodeMirror/node_modules/@codemirror/autocomplete/dist/index.js",
+        "@codemirror/commands": "./CodeMirror/node_modules/@codemirror/commands/dist/index.js",
+        "@codemirror/lang-cpp": "./CodeMirror/node_modules/@codemirror/lang-cpp/dist/index.js",
+        "@codemirror/lang-go": "./CodeMirror/node_modules/@codemirror/lang-go/dist/index.js",
+        "@codemirror/lang-java": "./CodeMirror/node_modules/@codemirror/lang-java/dist/index.js",
+        "@codemirror/lang-python": "./CodeMirror/node_modules/@codemirror/lang-python/dist/index.js",
+        "@codemirror/lang-rust": "./CodeMirror/node_modules/@codemirror/lang-rust/dist/index.js",
+        "@codemirror/language": "./CodeMirror/node_modules/@codemirror/language/dist/index.js",
+        "@codemirror/lint": "./CodeMirror/node_modules/@codemirror/lint/dist/index.js",
+        "@codemirror/search": "./CodeMirror/node_modules/@codemirror/search/dist/index.js",
+        "@codemirror/state": "./CodeMirror/node_modules/@codemirror/state/dist/index.js",
+        "@codemirror/view": "./CodeMirror/node_modules/@codemirror/view/dist/index.js",
+        "@lezer/common": "./CodeMirror/node_modules/@lezer/common/dist/index.js",
+        "@lezer/cpp": "./CodeMirror/node_modules/@lezer/cpp/dist/index.js",
+        "@lezer/go": "./CodeMirror/node_modules/@lezer/go/dist/index.js",
+        "@lezer/highlight": "./CodeMirror/node_modules/@lezer/highlight/dist/index.js",
+        "@lezer/java": "./CodeMirror/node_modules/@lezer/java/dist/index.js",
+        "@lezer/lr": "./CodeMirror/node_modules/@lezer/lr/dist/index.js",
+        "@lezer/python": "./CodeMirror/node_modules/@lezer/python/dist/index.js",
+        "@lezer/rust": "./CodeMirror/node_modules/@lezer/rust/dist/index.js",
+        "@marijn/find-cluster-break": "./CodeMirror/node_modules/@marijn/find-cluster-break/src/index.js",
+        "crelt": "./CodeMirror/node_modules/crelt/index.js",
+        "style-mod": "./CodeMirror/node_modules/style-mod/src/style-mod.js",
+        "w3c-keyname": "./CodeMirror/node_modules/w3c-keyname/index.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <div class="page-shell">
@@ -41,13 +78,28 @@
     </main>
   </div>
 
+  <script type="module">
+    import("./js/codemirror-loader.js")
+      .then(() => {
+        if (typeof window.__resolveCodeMirrorReady === "function") {
+          window.__resolveCodeMirrorReady();
+        }
+      })
+      .catch((error) => {
+        window.codeMirrorLoadError = error;
+        console.error("[codemirror-loader]", error);
+        if (typeof window.__rejectCodeMirrorReady === "function") {
+          window.__rejectCodeMirrorReady(error);
+        }
+      });
+  </script>
   <script src="./app.js"></script>
   <script src="./js/general-pages.js"></script>
+  <script src="./js/admin.js"></script>
   <script src="./js/problems.js"></script>
   <script src="./js/submissions.js"></script>
   <script src="./js/contests.js"></script>
   <script src="./js/teaching.js"></script>
-  <script src="./js/admin.js"></script>
   <script src="./js/forum.js"></script>
   <script src="./js/bootstrap.js"></script>
 </body>

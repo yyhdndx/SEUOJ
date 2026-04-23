@@ -245,6 +245,7 @@ func registerStaticRoutes(engine *gin.Engine) {
 	stylesPath := filepath.Join(frontendDir, "styles.css")
 	jsDir := filepath.Join(frontendDir, "js")
 	cssDir := filepath.Join(frontendDir, "css")
+	codeMirrorDir := filepath.Join(frontendDir, "CodeMirror")
 
 	if _, err := os.Stat(indexPath); err != nil {
 		return
@@ -255,6 +256,9 @@ func registerStaticRoutes(engine *gin.Engine) {
 	}
 	if _, err := os.Stat(cssDir); err == nil {
 		engine.StaticFS("/css", gin.Dir(cssDir, false))
+	}
+	if _, err := os.Stat(codeMirrorDir); err == nil {
+		engine.StaticFS("/CodeMirror", gin.Dir(codeMirrorDir, false))
 	}
 
 	engine.GET("/", func(c *gin.Context) {
