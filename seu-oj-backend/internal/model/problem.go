@@ -14,6 +14,7 @@ type Problem struct {
 	Hint          string    `gorm:"column:hint" json:"hint"`
 	Source        string    `gorm:"column:source" json:"source"`
 	JudgeMode     string    `gorm:"column:judge_mode" json:"judge_mode"`
+	Difficulty    int       `gorm:"column:difficulty" json:"difficulty"`
 	TimeLimitMS   int       `gorm:"column:time_limit_ms" json:"time_limit_ms"`
 	MemoryLimitMB int       `gorm:"column:memory_limit_mb" json:"memory_limit_mb"`
 	Visible       bool      `gorm:"column:visible" json:"visible"`

@@ -52,6 +52,7 @@ func (s *ProblemService) CreateProblem(ctxUserID uint64, ctxRole string, req dto
 		Hint:          req.Hint,
 		Source:        strings.TrimSpace(req.Source),
 		JudgeMode:     req.JudgeMode,
+		Difficulty:    req.Difficulty,
 		TimeLimitMS:   req.TimeLimitMS,
 		MemoryLimitMB: req.MemoryLimitMB,
 		Visible:       req.Visible,
@@ -109,6 +110,7 @@ func (s *ProblemService) ListAdminProblems(ctxRole string, page, pageSize int, k
 			DisplayID:     problem.DisplayID,
 			Title:         problem.Title,
 			JudgeMode:     problem.JudgeMode,
+			Difficulty:    problem.Difficulty,
 			TimeLimitMS:   problem.TimeLimitMS,
 			MemoryLimitMB: problem.MemoryLimitMB,
 			Visible:       problem.Visible,
@@ -137,6 +139,7 @@ func (s *ProblemService) ListProblems(page, pageSize int, keyword string) (*dto.
 			DisplayID:     problem.DisplayID,
 			Title:         problem.Title,
 			JudgeMode:     problem.JudgeMode,
+			Difficulty:    problem.Difficulty,
 			TimeLimitMS:   problem.TimeLimitMS,
 			MemoryLimitMB: problem.MemoryLimitMB,
 			Visible:       problem.Visible,
@@ -226,6 +229,7 @@ func (s *ProblemService) UpdateProblem(ctxRole string, id uint64, req dto.Create
 	problem.Hint = req.Hint
 	problem.Source = strings.TrimSpace(req.Source)
 	problem.JudgeMode = req.JudgeMode
+	problem.Difficulty = req.Difficulty
 	problem.TimeLimitMS = req.TimeLimitMS
 	problem.MemoryLimitMB = req.MemoryLimitMB
 	problem.Visible = req.Visible
@@ -272,12 +276,12 @@ func (s *ProblemService) DeleteProblem(ctxRole string, id uint64) error {
 }
 
 func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate bool) ([]dto.ProblemSolutionResponse, error) {
-		if _, err := s.problemRepo.GetByID(problemID); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, ErrProblemNotFound
-			}
-			return nil, err
+	if _, err := s.problemRepo.GetByID(problemID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProblemNotFound
 		}
+		return nil, err
+	}
 
 	query := s.db.Model(&model.ProblemSolution{}).Where("problem_id = ?", problemID)
 	if !includePrivate {
@@ -290,14 +294,14 @@ func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate b
 	result := make([]dto.ProblemSolutionResponse, 0, len(items))
 	for _, item := range items {
 		result = append(result, dto.ProblemSolutionResponse{
-			ID: item.ID,
-			ProblemID: item.ProblemID,
-			Title: item.Title,
-			Content: item.Content,
+			ID:         item.ID,
+			ProblemID:  item.ProblemID,
+			Title:      item.Title,
+			Content:    item.Content,
 			Visibility: item.Visibility,
-			AuthorID: item.AuthorID,
-			CreatedAt: item.CreatedAt,
-			UpdatedAt: item.UpdatedAt,
+			AuthorID:   item.AuthorID,
+			CreatedAt:  item.CreatedAt,
+			UpdatedAt:  item.UpdatedAt,
 		})
 	}
 	return result, nil
@@ -314,11 +318,11 @@ func (s *ProblemService) CreateProblemSolution(userID uint64, role string, probl
 		return nil, err
 	}
 	solution := model.ProblemSolution{
-		ProblemID: problemID,
-		Title: strings.TrimSpace(req.Title),
-		Content: req.Content,
+		ProblemID:  problemID,
+		Title:      strings.TrimSpace(req.Title),
+		Content:    req.Content,
 		Visibility: req.Visibility,
-		AuthorID: userID,
+		AuthorID:   userID,
 	}
 	if err := s.db.Create(&solution).Error; err != nil {
 		return nil, err
@@ -394,6 +398,7 @@ func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTes
 		Hint:          problem.Hint,
 		Source:        problem.Source,
 		JudgeMode:     problem.JudgeMode,
+		Difficulty:    problem.Difficulty,
 		TimeLimitMS:   problem.TimeLimitMS,
 		MemoryLimitMB: problem.MemoryLimitMB,
 		Visible:       problem.Visible,

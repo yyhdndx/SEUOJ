@@ -261,24 +261,21 @@ async function renderProblemDetail(id) {
 }
 
 function getProblemDifficulty(problem) {
-  const rawDifficulty = [
-    problem?.difficulty,
-    problem?.difficulty_label,
-    problem?.level,
-    problem?.level_name,
-  ].find((value) => value !== undefined && value !== null && String(value).trim());
-  const normalized = String(rawDifficulty || "Unknown").trim();
-  const lower = normalized.toLowerCase();
+  const difficultyValue = Number(problem?.difficulty);
+  let label = "未知";
   let className = "status-neutral";
-  if (lower.includes("easy")) {
+  if (difficultyValue === 1) {
+    label = "简单";
     className = "status-accepted";
-  } else if (lower.includes("medium")) {
+  } else if (difficultyValue === 2) {
+    label = "中等";
     className = "status-pending";
-  } else if (lower.includes("hard")) {
+  } else if (difficultyValue === 3) {
+    label = "困难";
     className = "status-wrong";
   }
   return {
-    label: normalized,
+    label,
     className,
   };
 }
