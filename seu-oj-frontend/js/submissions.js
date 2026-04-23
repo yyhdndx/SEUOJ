@@ -486,20 +486,55 @@ function submissionDraftKey(problemID) {
 }
 
 function saveSubmissionDraft(problemID, language, code) {
+  const previous = readSubmissionDraft(problemID);
+  const draftsByLanguage = { ...(previous?.drafts_by_language || {}) };
+  draftsByLanguage[language] = {
+    code,
+    saved_at: new Date().toISOString(),
+  };
   localStorage.setItem(submissionDraftKey(problemID), JSON.stringify({
     language,
     code,
+    last_language: language,
+    drafts_by_language: draftsByLanguage,
     saved_at: new Date().toISOString(),
   }));
 }
 
-function readSubmissionDraft(problemID) {
+function readSubmissionDraft(problemID, preferredLanguage = "") {
   try {
     const raw = localStorage.getItem(submissionDraftKey(problemID));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    const draftsByLanguage = parsed?.drafts_by_language && typeof parsed.drafts_by_language === "object"
+      ? parsed.drafts_by_language
+      : {};
+    const fallbackLanguage = parsed?.last_language || parsed?.language || "";
+    const language = preferredLanguage || fallbackLanguage;
+    const preferredDraft = language ? draftsByLanguage[language] : null;
+    const legacyCode = typeof parsed?.code === "string" ? parsed.code : "";
+
+    return {
+      ...parsed,
+      drafts_by_language: draftsByLanguage,
+      last_language: fallbackLanguage,
+      language,
+      code: typeof preferredDraft?.code === "string" ? preferredDraft.code : legacyCode,
+    };
   } catch {
     return null;
   }
+}
+
+function readSubmissionDraftCode(problemID, language) {
+  const draft = readSubmissionDraft(problemID, language);
+  if (!draft) {
+    return "";
+  }
+  return typeof draft.code === "string" ? draft.code : "";
 }
 
 function clearSubmissionDraft(problemID) {

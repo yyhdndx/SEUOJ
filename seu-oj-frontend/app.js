@@ -140,12 +140,23 @@ async function refreshCurrentUser() {
 function setFlash(message, isError = false) {
   if (!message) {
     flash.className = "flash hidden";
-    flash.textContent = "";
+    flash.innerHTML = "";
     return;
   }
   flash.className = `flash ${isError ? "error" : ""}`;
-  flash.textContent = message;
+  flash.innerHTML = `
+    <div class="flash-content">
+      <span>${escapeHTML(message)}</span>
+      <button class="flash-close" type="button" aria-label="Close message">&times;</button>
+    </div>
+  `;
 }
+
+flash?.addEventListener("click", (event) => {
+  if (event.target instanceof HTMLElement && event.target.classList.contains("flash-close")) {
+    setFlash("");
+  }
+});
 
 function renderFatalError(err, source = "unknown") {
   const message = err instanceof Error ? err.message : String(err || "Unknown error");
