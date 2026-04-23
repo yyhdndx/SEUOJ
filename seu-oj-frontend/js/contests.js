@@ -1,4 +1,73 @@
-﻿// Contest domain pages and helpers
+// Contest domain pages and helpers
+const CONTEST_RANKLIST_PAGE_SIZE = 25;
+const CONTEST_PROBLEM_CARD_THRESHOLD = 6;
+
+function contestDetailAllowedTabs() {
+  return new Set(["overview", "announcements", "problems", "submissions", "standings"]);
+}
+
+function contestDetailInitialTab() {
+  const tabParams = new URLSearchParams(getCurrentHashPath().split("?")[1] || "");
+  const raw = (tabParams.get("tab") || "").toLowerCase();
+  return contestDetailAllowedTabs().has(raw) ? raw : "overview";
+}
+
+function setContestDetailTabHash(contestId, tab) {
+  const base = `#/contests/${contestId}`;
+  const next = !contestDetailAllowedTabs().has(tab) || tab === "overview" ? base : `${base}?tab=${tab}`;
+  if (location.hash === next) {
+    return;
+  }
+  history.replaceState(null, "", next);
+}
+
+function contestProblemLayoutStorageKey(contestId) {
+  return `seuoj_contest_problem_layout_${contestId}`;
+}
+
+function contestProblemDefaultLayout(problemCount) {
+  return problemCount >= CONTEST_PROBLEM_CARD_THRESHOLD ? "cards" : "table";
+}
+
+function contestProblemEffectiveLayout(contestId, problemCount) {
+  const stored = localStorage.getItem(contestProblemLayoutStorageKey(contestId));
+  if (stored === "cards" || stored === "table") {
+    return stored;
+  }
+  return contestProblemDefaultLayout(problemCount);
+}
+
+function getNumericPaginationRange(current, last) {
+  if (last <= 1) {
+    return [1];
+  }
+  const delta = 2;
+  const range = [];
+  const rangeWithDots = [];
+  let left = Math.max(2, current - delta);
+  let right = Math.min(last - 1, current + delta);
+  for (let i = 1; i <= last; i += 1) {
+    if (i === 1 || i === last || (i >= left && i <= right)) {
+      range.push(i);
+    }
+  }
+  let previous = 0;
+  for (const i of range) {
+    if (previous) {
+      if (i - previous === 2) {
+        rangeWithDots.push(previous + 1);
+      } else if (i - previous !== 1) {
+        rangeWithDots.push("ellipsis");
+      }
+    }
+    rangeWithDots.push(i);
+    previous = i;
+  }
+  return rangeWithDots;
+}
+
+let contestRanklistPagerState = null;
+
 async function renderContests() {
   const queryString = getCurrentHashPath().split("?")[1] || "";
   const params = new URLSearchParams(queryString);
@@ -133,6 +202,11 @@ async function renderContestDetail(id) {
     const ranklistHint = ranklist?.ranklist_frozen
       ? `Ranklist frozen at ${escapeHTML(ranklist.ranklist_freeze_at || "-")}. Cells marked with * hide post-freeze submissions until contest ends.`
       : "Live ACM-style standings computed from contest-tagged submissions.";
+    const initialTab = contestDetailInitialTab();
+    const contestNumId = Number(id);
+    const problemList = problems?.list || [];
+    const problemLayout = contestProblemEffectiveLayout(contestNumId, problemList.length);
+    const tabPanelHidden = (name) => (initialTab === name ? "" : " hidden");
 
     app.innerHTML = `
       <div class="view-header">
@@ -146,68 +220,94 @@ async function renderContestDetail(id) {
           ${contest.ranklist_frozen ? `<span class="status-pill status-pending">frozen</span>` : contest.ranklist_freeze_at ? `<span class="status-pill status-neutral">freeze set</span>` : ""}
           <a class="ghost-button" href="#/forum?scope_type=contest&scope_id=${encodeURIComponent(contest.id)}">Discuss</a>
           ${state.token && me?.can_register ? `<button class="primary-button" id="contest-register-btn">Register</button>` : ""}
-          ${me?.can_view_problems ? `<a class="ghost-button" href="#contest-problems">Problems</a>` : ""}
+          ${me?.can_view_problems ? `<a class="ghost-button" href="#/contests/${id}?tab=problems">Problems</a>` : ""}
         </div>
       </div>
-      <section class="detail-grid">
-        <article class="detail-card">
-          <h3>Description</h3>
-          ${renderMarkdownBlock(contest.description || "No description.")}
-        </article>
-        <aside class="detail-card">
-          <h3>Overview</h3>
-          <div class="metric-list">
-            <div class="metric"><span class="metric-label">Rule</span><span class="metric-value mono">${escapeHTML(contest.rule_type)}</span></div>
-            <div class="metric"><span class="metric-label">Start</span><span class="metric-value mono">${escapeHTML(contest.start_time)}</span></div>
-            <div class="metric"><span class="metric-label">End</span><span class="metric-value mono">${escapeHTML(contest.end_time)}</span></div>
-            <div class="metric"><span class="metric-label">Practice</span><span class="metric-value">${contest.allow_practice ? "Enabled" : "Closed"}</span></div>
-            <div class="metric"><span class="metric-label">Freeze At</span><span class="metric-value mono">${escapeHTML(contest.ranklist_freeze_at || "-")}</span></div>
-            <div class="metric"><span class="metric-label">Ranklist</span><span class="metric-value">${contest.ranklist_frozen ? "Frozen" : "Live"}</span></div>
-            <div class="metric"><span class="metric-label">Problems</span><span class="metric-value">${contest.problem_count}</span></div>
-            <div class="metric"><span class="metric-label">Registrations</span><span class="metric-value">${contest.registered_count}</span></div>
-            ${me ? `<div class="metric"><span class="metric-label">Registered</span><span class="metric-value">${me.registered ? "Yes" : "No"}</span></div>` : ""}
+      <section class="detail-card contest-detail-workspace contest-detail-workspace--top-tabs" style="margin-top:18px;">
+        <div class="contest-detail-tablist" role="tablist" aria-label="Contest sections">
+          <button type="button" class="contest-detail-tab${initialTab === "overview" ? " is-active" : ""}" role="tab" aria-selected="${initialTab === "overview"}" data-contest-tab="overview">Contest Overview</button>
+          <button type="button" class="contest-detail-tab${initialTab === "announcements" ? " is-active" : ""}" role="tab" aria-selected="${initialTab === "announcements"}" data-contest-tab="announcements">Contest Announcements</button>
+          <button type="button" class="contest-detail-tab${initialTab === "problems" ? " is-active" : ""}" role="tab" aria-selected="${initialTab === "problems"}" data-contest-tab="problems">Problem Set</button>
+          <button type="button" class="contest-detail-tab${initialTab === "submissions" ? " is-active" : ""}" role="tab" aria-selected="${initialTab === "submissions"}" data-contest-tab="submissions">My Contest Submissions</button>
+          <button type="button" class="contest-detail-tab${initialTab === "standings" ? " is-active" : ""}" role="tab" aria-selected="${initialTab === "standings"}" data-contest-tab="standings">Standings</button>
+        </div>
+        <div class="contest-detail-tab-panel${tabPanelHidden("overview")}" data-tab-panel="overview" role="tabpanel">
+          <div class="view-header">
+            <div>
+              <h3 style="margin:0;">Contest Overview</h3>
+              <p class="view-subtitle">Description and schedule summary for this contest.</p>
+            </div>
           </div>
-        </aside>
-      </section>
-      <section class="detail-card" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>Contest Announcements</h3>
-            <p class="view-subtitle">Pinned updates and clarifications released for this contest.</p>
+          <div class="detail-grid contest-overview-grid">
+            <article class="detail-card">
+              <h3>Description</h3>
+              ${renderMarkdownBlock(contest.description || "No description.")}
+            </article>
+            <aside class="detail-card">
+              <h3>Overview</h3>
+              <div class="metric-list">
+                <div class="metric"><span class="metric-label">Rule</span><span class="metric-value mono">${escapeHTML(contest.rule_type)}</span></div>
+                <div class="metric"><span class="metric-label">Start</span><span class="metric-value mono">${escapeHTML(contest.start_time)}</span></div>
+                <div class="metric"><span class="metric-label">End</span><span class="metric-value mono">${escapeHTML(contest.end_time)}</span></div>
+                <div class="metric"><span class="metric-label">Practice</span><span class="metric-value">${contest.allow_practice ? "Enabled" : "Closed"}</span></div>
+                <div class="metric"><span class="metric-label">Freeze At</span><span class="metric-value mono">${escapeHTML(contest.ranklist_freeze_at || "-")}</span></div>
+                <div class="metric"><span class="metric-label">Ranklist</span><span class="metric-value">${contest.ranklist_frozen ? "Frozen" : "Live"}</span></div>
+                <div class="metric"><span class="metric-label">Problems</span><span class="metric-value">${contest.problem_count}</span></div>
+                <div class="metric"><span class="metric-label">Registrations</span><span class="metric-value">${contest.registered_count}</span></div>
+                ${me ? `<div class="metric"><span class="metric-label">Registered</span><span class="metric-value">${me.registered ? "Yes" : "No"}</span></div>` : ""}
+              </div>
+            </aside>
           </div>
         </div>
-        ${renderContestAnnouncementList(announcements.list || [], { admin: false, contestID: Number(id) })}
-      </section>
-      <section class="detail-card" id="contest-problems" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>Problem Set</h3>
-            <p class="view-subtitle">${problemSetHint}</p>
+        <div class="contest-detail-tab-panel${tabPanelHidden("announcements")}" data-tab-panel="announcements" role="tabpanel">
+          <div class="view-header">
+            <div>
+              <h3 style="margin:0;">Contest Announcements</h3>
+              <p class="view-subtitle">Pinned updates and clarifications released for this contest.</p>
+            </div>
           </div>
+          ${renderContestAnnouncementList(announcements.list || [], { admin: false, contestID: contestNumId })}
         </div>
-        ${problems ? renderContestProblemTable(id, problems.list || []) : `<p class="view-subtitle">Problem set is currently unavailable for your account.</p>`}
-      </section>
-      <section class="detail-card" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>My Contest Submissions</h3>
-            <p class="view-subtitle">Recent submissions tagged with this contest.</p>
+        <div class="contest-detail-tab-panel${tabPanelHidden("problems")}" data-tab-panel="problems" role="tabpanel" id="contest-panel-problems">
+          <div class="view-header">
+            <div>
+              <h3 style="margin:0;">Problem Set</h3>
+              <p class="view-subtitle">${problemSetHint}</p>
+            </div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center;"><span class="mono">${contestSubmissions.filter((item) => isSubmissionPollingStatus(item.status)).length ? "judging active" : "judging idle"}</span><a class="ghost-button" href="#/submissions?contest_id=${id}">Open Filtered List</a></div>
+          ${problems ? renderContestProblemSection(id, problemList, problemLayout) : `<p class="view-subtitle">Problem set is currently unavailable for your account.</p>`}
         </div>
-        ${renderContestRecentSubmissions(contestSubmissions)}
-      </section>
-      <section class="detail-card" style="margin-top:18px;">
-        <div class="view-header">
-          <div>
-            <h3>Standings</h3>
-            <p class="view-subtitle">${ranklistHint}</p>
+        <div class="contest-detail-tab-panel${tabPanelHidden("submissions")}" data-tab-panel="submissions" role="tabpanel">
+          <div class="view-header">
+            <div>
+              <h3 style="margin:0;">My Contest Submissions</h3>
+              <p class="view-subtitle">Recent submissions tagged with this contest.</p>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;"><span class="mono">${contestSubmissions.filter((item) => isSubmissionPollingStatus(item.status)).length ? "judging active" : "judging idle"}</span><a class="ghost-button" href="#/submissions?contest_id=${id}">Open Filtered List</a></div>
           </div>
-          ${ranklist?.ranklist_frozen ? `<span class="status-pill status-pending">Frozen</span>` : `<span class="status-pill status-accepted">Live</span>`}
+          ${renderContestRecentSubmissions(contestSubmissions)}
         </div>
-        ${ranklist ? renderContestRanklistTable(ranklist) : `<p class="view-subtitle">Standings unavailable.</p>`}
+        <div class="contest-detail-tab-panel${tabPanelHidden("standings")}" data-tab-panel="standings" role="tabpanel">
+          <div class="view-header">
+            <div>
+              <h3 style="margin:0;" class="${contestStandingsTitleClass(ranklist, contest)}">Standings</h3>
+              <p class="view-subtitle">${ranklistHint}</p>
+            </div>
+            ${contestStandingsStatusPill(ranklist, contest)}
+          </div>
+          ${ranklist ? renderContestRanklistTable(ranklist, { contestId: contestNumId, page: 1 }) : `<p class="view-subtitle">Standings unavailable.</p>`}
+        </div>
       </section>
     `;
+
+    wireContestDetailTabs(contestNumId);
+    initContestProblemLayoutControls(contestNumId, problemList.length);
+    initContestSubmissionRowClicks();
+    if (ranklist) {
+      initContestRanklistPager(contestNumId, ranklist);
+    } else {
+      contestRanklistPagerState = null;
+    }
 
     startContestPolling(id, contest.status);
 
@@ -523,7 +623,7 @@ async function renderAdminContestDetail(id) {
             <p class="view-subtitle">Internal contest set order, codes, and linked problems.</p>
           </div>
         </div>
-        ${detail.problems?.length ? renderContestProblemTable(detail.id, detail.problems) : `<p class="view-subtitle">No contest problems configured.</p>`}
+        ${detail.problems?.length ? renderContestProblemSection(detail.id, detail.problems, contestProblemEffectiveLayout(detail.id, detail.problems.length)) : `<p class="view-subtitle">No contest problems configured.</p>`}
       </section>
       <section class="detail-card" style="margin-top:18px;">
         <div class="view-header">
@@ -532,9 +632,17 @@ async function renderAdminContestDetail(id) {
             <p class="view-subtitle">Full standings view. Freeze is ignored for admins.</p>
           </div>
         </div>
-        ${ranklist ? renderContestRanklistTable(ranklist) : `<p class="view-subtitle">Standings unavailable.</p>`}
+        ${ranklist ? renderContestRanklistTable(ranklist, { contestId: detail.id, page: 1 }) : `<p class="view-subtitle">Standings unavailable.</p>`}
       </section>
     `;
+    if (detail.problems?.length) {
+      initContestProblemLayoutControls(detail.id, detail.problems.length);
+    }
+    if (ranklist) {
+      initContestRanklistPager(detail.id, ranklist);
+    } else {
+      contestRanklistPagerState = null;
+    }
     document.querySelectorAll(".contest-announcement-delete").forEach((button) => {
       button.addEventListener("click", async () => {
         const announcementID = button.dataset.announcementId;
@@ -734,71 +842,512 @@ async function renderAdminContestForm(id, initial) {
   }
 }
 
+function contestProblemHref(contestID, problemId) {
+  return `#/contests/${contestID}/problems/${problemId}`;
+}
+
+function renderContestProblemTableRows(contestID, problems) {
+  return problems
+    .map(
+      (item) => `
+          <tr class="contest-problem-click-row" tabindex="0" role="link" data-problem-href="${escapeHTML(contestProblemHref(contestID, item.problem_id))}">
+            <td><span class="status-pill status-neutral">${escapeHTML(item.problem_code)}</span></td>
+            <td>${escapeHTML(item.title)}</td>
+            <td>${escapeHTML(item.judge_mode)}</td>
+            <td class="mono">${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</td>
+          </tr>
+        `,
+    )
+    .join("");
+}
+
 function renderContestProblemTable(contestID, problems) {
   if (!problems.length) {
     return `<p class="view-subtitle">No contest problem is configured yet.</p>`;
   }
   return `
-    <table class="data-table">
+    <table class="data-table contest-problem-table">
       <thead>
         <tr>
           <th>Code</th>
           <th>Title</th>
           <th>Judge</th>
           <th>Limits</th>
-          <th>Open</th>
         </tr>
       </thead>
       <tbody>
-        ${problems.map((item) => `
-          <tr>
-            <td><span class="status-pill status-neutral">${escapeHTML(item.problem_code)}</span></td>
-            <td>${escapeHTML(item.title)}</td>
-            <td>${escapeHTML(item.judge_mode)}</td>
-            <td>${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</td>
-            <td><a class="table-link" href="#/contests/${contestID}/problems/${item.problem_id}">Solve</a></td>
-          </tr>
-        `).join("")}
+        ${renderContestProblemTableRows(contestID, problems)}
       </tbody>
     </table>
   `;
 }
 
-function renderContestRanklistTable(ranklist) {
-  const problems = ranklist.problems || [];
-  const rows = ranklist.list || [];
-  if (!rows.length) {
-    return `<p class="view-subtitle">No registered participants or no contest-tagged submissions yet.</p>`;
-  }
+function renderContestProblemCards(contestID, problems) {
   return `
-    ${ranklist.ranklist_frozen ? `<p class="view-subtitle" style="margin-bottom:12px;">* indicates hidden post-freeze submissions.</p>` : ""}
-    <div style="overflow:auto;">
-      <table class="data-table">
-        <thead>
+    <div class="contest-problem-card-grid">
+      ${problems
+        .map(
+          (item) => `
+        <a class="contest-problem-card" href="${escapeHTML(contestProblemHref(contestID, item.problem_id))}">
+          <div class="contest-problem-card-code"><span class="status-pill status-neutral">${escapeHTML(item.problem_code)}</span></div>
+          <div class="contest-problem-card-title">${escapeHTML(item.title)}</div>
+          <div class="contest-problem-card-meta mono">${escapeHTML(item.judge_mode)} · ${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</div>
+        </a>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderContestProblemSection(contestID, problems, layoutMode) {
+  if (!problems.length) {
+    return `<p class="view-subtitle">No contest problem is configured yet.</p>`;
+  }
+  const tableHidden = layoutMode === "cards" ? " hidden" : "";
+  const cardsHidden = layoutMode === "table" ? " hidden" : "";
+  return `
+    <div class="contest-problem-layout-toolbar">
+      <div class="contest-problem-layout-toggle" role="group" aria-label="Problem layout">
+        <button type="button" class="ghost-button contest-problem-layout-btn${layoutMode === "table" ? " is-active" : ""}" data-problem-layout="table">Row layout</button>
+        <button type="button" class="ghost-button contest-problem-layout-btn${layoutMode === "cards" ? " is-active" : ""}" data-problem-layout="cards">Card layout</button>
+      </div>
+      <p class="view-subtitle contest-problem-layout-hint">With many problems, card layout is suggested. Click a row or card to open the problem.</p>
+    </div>
+    <div id="contest-problem-layout-table" class="contest-problem-layout-slot${tableHidden}">${renderContestProblemTable(contestID, problems)}</div>
+    <div id="contest-problem-layout-cards" class="contest-problem-layout-slot${cardsHidden}">${renderContestProblemCards(contestID, problems)}</div>
+  `;
+}
+
+function wireContestDetailTabs(contestId) {
+  const root = document.querySelector(".contest-detail-workspace");
+  if (!root) {
+    return;
+  }
+  const activate = (name) => {
+    root.querySelectorAll("[data-contest-tab]").forEach((btn) => {
+      const active = btn.dataset.contestTab === name;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    root.querySelectorAll("[data-tab-panel]").forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.tabPanel !== name);
+    });
+  };
+  root.querySelectorAll("[data-contest-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.contestTab;
+      if (!name) {
+        return;
+      }
+      activate(name);
+      setContestDetailTabHash(contestId, name);
+    });
+  });
+}
+
+function initContestProblemLayoutControls(contestId, problemCount) {
+  if (!problemCount) {
+    return;
+  }
+  const tableBox = document.getElementById("contest-problem-layout-table");
+  const cardsBox = document.getElementById("contest-problem-layout-cards");
+  if (!tableBox || !cardsBox) {
+    return;
+  }
+  const applyMode = (mode) => {
+    const next = mode === "cards" ? "cards" : "table";
+    localStorage.setItem(contestProblemLayoutStorageKey(contestId), next);
+    tableBox.removeAttribute("hidden");
+    cardsBox.removeAttribute("hidden");
+    tableBox.classList.toggle("hidden", next === "cards");
+    cardsBox.classList.toggle("hidden", next === "table");
+    document.querySelectorAll(".contest-problem-layout-btn").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.problemLayout === next);
+    });
+  };
+  document.querySelectorAll(".contest-problem-layout-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      applyMode(btn.dataset.problemLayout);
+    });
+  });
+  document.querySelectorAll(".contest-problem-click-row").forEach((row) => {
+    const go = () => {
+      const href = row.dataset.problemHref;
+      if (href) {
+        location.hash = href;
+      }
+    };
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        go();
+      }
+    });
+  });
+}
+
+function initContestSubmissionRowClicks() {
+  document.querySelectorAll("tr.contest-submission-click-row").forEach((row) => {
+    const href = row.dataset.submissionHref;
+    if (!href) {
+      return;
+    }
+    const go = () => {
+      location.hash = href;
+    };
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        go();
+      }
+    });
+  });
+}
+
+function contestRanklistFrozenClass(ranklist) {
+  return ranklist.ranklist_frozen ? "contest-ranklist-frozen" : "contest-ranklist-live";
+}
+
+function contestRankPlaceLabel(rank) {
+  const n = Number(rank);
+  if (!Number.isFinite(n) || n < 1) {
+    return "–";
+  }
+  return `#${n}`;
+}
+
+function contestStandingsTitleClass(ranklist, contest) {
+  if (!ranklist) {
+    return "contest-standings-heading contest-standings-heading--muted";
+  }
+  const st = String(ranklist.contest_status || contest?.status || "").toLowerCase();
+  if (st === "ended") {
+    return "contest-standings-heading contest-standings-heading--ended";
+  }
+  if (st === "upcoming") {
+    return "contest-standings-heading contest-standings-heading--muted";
+  }
+  if (ranklist.ranklist_frozen) {
+    return "contest-standings-heading contest-standings-heading--frozen";
+  }
+  if (st === "running") {
+    return "contest-standings-heading contest-standings-heading--live";
+  }
+  return "contest-standings-heading contest-standings-heading--muted";
+}
+
+function contestStandingsStatusPill(ranklist, contest) {
+  if (!ranklist) {
+    return `<span class="status-pill status-neutral">—</span>`;
+  }
+  const st = String(ranklist.contest_status || contest?.status || "").toLowerCase();
+  if (st === "ended") {
+    return `<span class="status-pill status-error">Ended</span>`;
+  }
+  if (st === "upcoming") {
+    return `<span class="status-pill status-neutral">Upcoming</span>`;
+  }
+  if (ranklist.ranklist_frozen) {
+    return `<span class="status-pill status-pending">Frozen</span>`;
+  }
+  if (st === "running") {
+    return `<span class="status-pill status-accepted">Live</span>`;
+  }
+  return `<span class="status-pill status-neutral">${escapeHTML(st || "—")}</span>`;
+}
+
+function contestRankTotalPrimary(row) {
+  return String(row.solved_count ?? 0);
+}
+
+function contestRankTotalSecondary(row) {
+  const penalty = row.penalty_minutes ?? 0;
+  return `${penalty} min total (incl. penalty)`;
+}
+
+function contestRankProblemCellInner(cell) {
+  const mainRaw = contestRankCellLabel(cell);
+  const main = mainRaw === "." ? "–" : escapeHTML(mainRaw);
+  const sub = cell.solved ? `${escapeHTML(String(cell.penalty_minutes ?? 0))} min` : "–";
+  return `
+    <div class="contest-rank-stack">
+      <div class="contest-rank-stack-main">${main}</div>
+      <div class="contest-rank-stack-sub">${sub}</div>
+    </div>
+  `;
+}
+
+function renderContestRanklistTheadInner(ranklist) {
+  const problems = ranklist.problems || [];
+  return `
           <tr>
             <th>Rank</th>
-            <th>User</th>
-            <th>Solved</th>
-            <th>Penalty</th>
-            <th>Submissions</th>
-            ${problems.map((problem) => `<th>${escapeHTML(problem.problem_code)}</th>`).join("")}
-          </tr>
+            <th>Participant</th>
+            <th>
+              <div class="contest-rank-th-stack">Total</div>
+              <div class="contest-rank-th-sub">Solved / time</div>
+            </th>
+            ${problems
+              .map(
+                (problem) => `
+              <th>
+                <div class="contest-rank-th-stack">${escapeHTML(problem.problem_code)}</div>
+                <div class="contest-rank-th-sub">Result / penalty</div>
+              </th>
+            `,
+              )
+              .join("")}
+          </tr>`;
+}
+
+function renderContestRanklistDataRowHtml(ranklist, row, trInnerAttrs) {
+  const attrs = (trInnerAttrs || "").trim();
+  const open = attrs ? ` ${attrs}` : "";
+  return `
+            <tr${open}>
+              <td class="mono">${escapeHTML(contestRankPlaceLabel(row.rank))}</td>
+              <td>
+                <div class="contest-rank-user-cell">
+                  <span class="contest-rank-username">${escapeHTML(row.username)}</span>
+                  <span class="contest-rank-userid mono">${escapeHTML(row.userid || "")}</span>
+                </div>
+              </td>
+              <td class="contest-rank-total-cell">
+                <div class="contest-rank-stack">
+                  <div class="contest-rank-stack-main">${escapeHTML(contestRankTotalPrimary(row))}</div>
+                  <div class="contest-rank-stack-sub">${escapeHTML(contestRankTotalSecondary(row))}</div>
+                </div>
+              </td>
+              ${row.cells.map((cell) => `<td class="${contestRankCellClass(cell)}"${contestRankCellTitle(cell)}>${contestRankProblemCellInner(cell)}</td>`).join("")}
+            </tr>`;
+}
+
+function contestRanklistMyRow(ranklist) {
+  if (!state.user?.id) {
+    return null;
+  }
+  const uid = Number(state.user.id);
+  return (ranklist.list || []).find((row) => Number(row.user_id) === uid) || null;
+}
+
+function renderContestRankMySummary(ranklist, contestId) {
+  const mine = contestRanklistMyRow(ranklist);
+  if (!mine) {
+    return `
+      <div class="contest-rank-my-summary contest-rank-my-summary--empty" data-contest-rank-summary="${contestId}">
+        <span class="mono">You are not on this ranklist yet (register / submit).</span>
+      </div>
+    `;
+  }
+  const rowHtml = renderContestRanklistDataRowHtml(
+    ranklist,
+    mine,
+    `class="contest-rank-row contest-rank-row--me row-current-user contest-rank-my-mirror-row"`,
+  );
+  return `
+    <div class="contest-rank-my-wrap" role="button" tabindex="0" data-contest-rank-summary="${contestId}" data-user-id="${mine.user_id}" aria-label="Scroll to your row in the full standings table">
+      <table class="data-table contest-ranklist-table contest-rank-my-mirror-table">
+        <thead>
+          ${renderContestRanklistTheadInner(ranklist)}
         </thead>
         <tbody>
-          ${rows.map((row) => `
-            <tr class="${state.user && Number(state.user.id) === Number(row.user_id) ? "row-current-user" : ""}">
-              <td>${row.rank}</td>
-              <td>${escapeHTML(row.username)}<br><span class="mono">${escapeHTML(row.userid || "")}</span></td>
-              <td>${row.solved_count}</td>
-              <td>${row.penalty_minutes}</td>
-              <td>${row.submission_count}</td>
-              ${row.cells.map((cell) => `<td class="${contestRankCellClass(cell)}"${contestRankCellTitle(cell)}>${escapeHTML(contestRankCellLabel(cell))}</td>`).join("")}
-            </tr>
-          `).join("")}
+          ${rowHtml}
         </tbody>
       </table>
     </div>
   `;
+}
+
+function renderContestRanklistRowsPage(ranklist, page, pageSize) {
+  const rows = ranklist.list || [];
+  const start = (page - 1) * pageSize;
+  const slice = rows.slice(start, start + pageSize);
+  return slice
+    .map((row) => {
+      const isMe = state.user && Number(state.user.id) === Number(row.user_id);
+      const rowClass = ["contest-rank-row", isMe ? "row-current-user contest-rank-row--me" : ""].filter(Boolean).join(" ");
+      return renderContestRanklistDataRowHtml(ranklist, row, `id="contest-rank-row-${row.user_id}" class="${rowClass}" data-user-id="${row.user_id}"`);
+    })
+    .join("");
+}
+
+function renderContestRanklistPager(ranklist, page, pageSize) {
+  const rows = ranklist.list || [];
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const current = Math.min(Math.max(1, page), totalPages);
+  const range = getNumericPaginationRange(current, totalPages);
+  const parts = range.map((item) => {
+    if (item === "ellipsis") {
+      return `<span class="contest-rank-page-ellipsis" aria-hidden="true">…</span>`;
+    }
+    const active = item === current ? " contest-rank-page-btn--current" : "";
+    return `<button type="button" class="ghost-button contest-rank-page-btn${active}" data-rank-page="${item}">${item}</button>`;
+  });
+  const backDisabled = current <= 1 ? " disabled" : "";
+  const forwardDisabled = current >= totalPages ? " disabled" : "";
+  return `
+    <nav class="contest-rank-pagination" aria-label="Standings pages" data-rank-pagination>
+      <span class="contest-rank-page-meta mono">共 ${totalPages} 页</span>
+      <button type="button" class="ghost-button contest-rank-page-edge"${backDisabled} data-rank-edge="first" aria-label="First page">«</button>
+      <button type="button" class="ghost-button contest-rank-page-edge"${backDisabled} data-rank-edge="prev" aria-label="Previous page">&lt;</button>
+      ${parts.join("")}
+      <button type="button" class="ghost-button contest-rank-page-edge"${forwardDisabled} data-rank-edge="next" aria-label="Next page">&gt;</button>
+      <button type="button" class="ghost-button contest-rank-page-edge"${forwardDisabled} data-rank-edge="last" aria-label="Last page">»</button>
+    </nav>
+  `;
+}
+
+function renderContestRanklistTable(ranklist, options = {}) {
+  const contestId = options.contestId || ranklist.contest_id || 0;
+  const page = options.page || 1;
+  const pageSize = options.pageSize || CONTEST_RANKLIST_PAGE_SIZE;
+  const rows = ranklist.list || [];
+  if (!rows.length) {
+    return `<p class="view-subtitle">No registered participants or no contest-tagged submissions yet.</p>`;
+  }
+  const frozenBanner = ranklist.ranklist_frozen
+    ? `
+    <div class="contest-freeze-banner" role="status">
+      <div class="contest-freeze-banner-title">FROZEN</div>
+      <div class="contest-freeze-banner-body">
+        Standings are frozen${ranklist.ranklist_freeze_at ? ` (since ${escapeHTML(String(ranklist.ranklist_freeze_at))})` : ""}.
+        Asterisks mark cells with hidden post-freeze activity until the contest ends.
+      </div>
+    </div>
+  `
+    : "";
+  const footnote = ranklist.ranklist_frozen
+    ? `<p class="view-subtitle contest-rank-footnote">* = hidden post-freeze submission(s); detailed counts appear after the contest.</p>`
+    : "";
+  return `
+    ${frozenBanner}
+    ${footnote}
+    ${renderContestRankMySummary(ranklist, contestId)}
+    <div class="contest-ranklist-scroll ${contestRanklistFrozenClass(ranklist)}">
+      <table class="data-table contest-ranklist-table">
+        <thead>
+          ${renderContestRanklistTheadInner(ranklist)}
+        </thead>
+        <tbody id="contest-ranklist-tbody">
+          ${renderContestRanklistRowsPage(ranklist, page, pageSize)}
+        </tbody>
+      </table>
+    </div>
+    <div id="contest-ranklist-pager-wrap">
+      ${renderContestRanklistPager(ranklist, page, pageSize)}
+    </div>
+  `;
+}
+
+function refreshContestRanklistDom() {
+  if (!contestRanklistPagerState) {
+    return;
+  }
+  const { ranklist, page, pageSize } = contestRanklistPagerState;
+  const tbody = document.getElementById("contest-ranklist-tbody");
+  const wrap = document.getElementById("contest-ranklist-pager-wrap");
+  if (tbody) {
+    tbody.innerHTML = renderContestRanklistRowsPage(ranklist, page, pageSize);
+  }
+  if (wrap) {
+    wrap.innerHTML = renderContestRanklistPager(ranklist, page, pageSize);
+  }
+  wireContestRanklistPagerEdges();
+}
+
+function findContestRanklistUserPage(ranklist, userId, pageSize) {
+  const rows = ranklist.list || [];
+  const idx = rows.findIndex((row) => Number(row.user_id) === Number(userId));
+  if (idx < 0) {
+    return null;
+  }
+  return Math.floor(idx / pageSize) + 1;
+}
+
+function flashContestRankRow(userId) {
+  const row = document.getElementById(`contest-rank-row-${userId}`);
+  if (!row) {
+    return;
+  }
+  row.classList.add("contest-rank-row-flash");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => row.classList.remove("contest-rank-row-flash"), 2400);
+}
+
+function wireContestRanklistPagerEdges() {
+  const nav = document.querySelector("[data-rank-pagination]");
+  if (!nav || !contestRanklistPagerState) {
+    return;
+  }
+  const { ranklist, pageSize } = contestRanklistPagerState;
+  const totalPages = Math.max(1, Math.ceil((ranklist.list || []).length / pageSize));
+  nav.querySelectorAll("[data-rank-page]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = Number(btn.dataset.rankPage);
+      if (!Number.isFinite(next)) {
+        return;
+      }
+      contestRanklistPagerState.page = Math.min(Math.max(1, next), totalPages);
+      refreshContestRanklistDom();
+    });
+  });
+  nav.querySelectorAll("[data-rank-edge]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) {
+        return;
+      }
+      const edge = btn.dataset.rankEdge;
+      let next = contestRanklistPagerState.page;
+      if (edge === "first") {
+        next = 1;
+      } else if (edge === "prev") {
+        next = Math.max(1, next - 1);
+      } else if (edge === "next") {
+        next = Math.min(totalPages, next + 1);
+      } else if (edge === "last") {
+        next = totalPages;
+      }
+      contestRanklistPagerState.page = next;
+      refreshContestRanklistDom();
+    });
+  });
+}
+
+function initContestRanklistPager(contestId, ranklist) {
+  contestRanklistPagerState = {
+    contestId,
+    ranklist,
+    page: 1,
+    pageSize: CONTEST_RANKLIST_PAGE_SIZE,
+  };
+  wireContestRanklistPagerEdges();
+  const summary = document.querySelector(`.contest-rank-my-wrap[data-contest-rank-summary="${contestId}"]`);
+  if (!summary) {
+    return;
+  }
+  const jump = () => {
+    const userId = summary.dataset.userId;
+    if (!userId || !contestRanklistPagerState) {
+      return;
+    }
+    const targetPage = findContestRanklistUserPage(contestRanklistPagerState.ranklist, userId, contestRanklistPagerState.pageSize);
+    if (!targetPage) {
+      return;
+    }
+    contestRanklistPagerState.page = targetPage;
+    refreshContestRanklistDom();
+    window.requestAnimationFrame(() => flashContestRankRow(userId));
+  };
+  summary.addEventListener("click", jump);
+  summary.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      jump();
+    }
+  });
 }
 
 function contestRankCellLabel(cell) {
@@ -883,8 +1432,8 @@ function renderContestRecentSubmissions(list) {
       </thead>
       <tbody>
         ${list.map((item) => `
-          <tr>
-            <td><a class="table-link" href="#/submissions/${item.id}">${item.id}</a></td>
+          <tr class="contest-submission-click-row" tabindex="0" role="link" data-submission-href="#/submissions/${item.id}">
+            <td class="mono">${item.id}</td>
             <td>${item.problem_id}</td>
             <td>${renderContestModeBadge(item)}</td>
             <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>

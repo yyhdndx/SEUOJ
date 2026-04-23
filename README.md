@@ -1,4 +1,4 @@
-﻿# SEU OJ
+# SEU OJ
 
 SEU OJ 是一个面向课程教学、日常训练与竞赛组织的轻量级 Online Judge 系统。
 
@@ -55,6 +55,7 @@ http://127.0.0.1:8080/
 
 ## 文档索引
 
+- [STORY-001 交付说明（比赛页 / 榜单 UX）](./stories/deliveries/STORY-001-contest-ranklist-ux.md)
 - [docs/api.md](./docs/api.md)：后端接口文档
 - [docs/current-features.md](./docs/current-features.md)：当前实现功能总览
 - [docs/demo-checklist.md](./docs/demo-checklist.md)：展示前功能检查清单

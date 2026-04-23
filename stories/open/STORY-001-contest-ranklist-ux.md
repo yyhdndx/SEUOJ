@@ -1,6 +1,6 @@
-﻿# STORY-001-contest-ranklist-ux
+# STORY-001-contest-ranklist-ux
 
-- Status: `todo`
+- Status: `done`
 - Priority: `P1`
 - Assignee: `unassigned`
 - Reviewer: `unassigned`
@@ -80,11 +80,13 @@
 
 ## Acceptance Criteria
 
-- [ ] 比赛榜单在题目列较多时仍然可正常阅读
-- [ ] 当前登录用户在榜单中有明显高亮
-- [ ] 封榜、通过、未通过、尝试中的状态区分清晰
-- [ ] 不影响比赛详情页、比赛题目页和榜单页的现有跳转
-- [ ] 前端脚本语法检查通过
+- [x] 比赛榜单在题目列较多时仍然可正常阅读
+- [x] 当前登录用户在榜单中有明显高亮
+- [x] 封榜、通过、未通过、尝试中的状态区分清晰
+- [x] 不影响比赛详情页、比赛题目页和榜单页的现有跳转
+- [x] 前端脚本语法检查通过
+
+交付说明见：[stories/deliveries/STORY-001-contest-ranklist-ux.md](../deliveries/STORY-001-contest-ranklist-ux.md)。
 
 ## Verification
 
