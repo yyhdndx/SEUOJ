@@ -3,6 +3,7 @@ package judge
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/model"
 	"seu-oj-backend/internal/queue"
 	"seu-oj-backend/internal/repository"
@@ -24,6 +26,7 @@ type Worker struct {
 	submissionRepo       *repository.SubmissionRepository
 	submissionResultRepo *repository.SubmissionResultRepository
 	sandboxRunner        *sandbox.Runner
+	cache                *cache.Cache
 }
 
 func NewWorker(
@@ -34,6 +37,7 @@ func NewWorker(
 	submissionRepo *repository.SubmissionRepository,
 	submissionResultRepo *repository.SubmissionResultRepository,
 	sandboxRunner *sandbox.Runner,
+	cacheStore *cache.Cache,
 ) *Worker {
 	return &Worker{
 		db:                   db,
@@ -43,6 +47,7 @@ func NewWorker(
 		submissionRepo:       submissionRepo,
 		submissionResultRepo: submissionResultRepo,
 		sandboxRunner:        sandboxRunner,
+		cache:                cacheStore,
 	}
 }
 
@@ -222,19 +227,27 @@ func (w *Worker) finishSubmission(submission *model.Submission, finish submissio
 	submission.ErrorMsg = finish.ErrorMsg
 	submission.JudgedAt = &now
 
-	return w.db.Transaction(func(tx *gorm.DB) error {
+	if err := w.db.Transaction(func(tx *gorm.DB) error {
 		if err := w.submissionRepo.Update(tx, submission); err != nil {
 			return err
 		}
 		return w.submissionResultRepo.ReplaceBySubmissionID(tx, submission.ID, results)
-	})
+	}); err != nil {
+		return err
+	}
+	w.invalidateSubmissionCaches(submission.UserID, submission.ContestID, submission.ID)
+	return nil
 }
 
 func (w *Worker) updateSubmissionState(submission *model.Submission, status string) error {
 	submission.Status = status
-	return w.db.Transaction(func(tx *gorm.DB) error {
+	if err := w.db.Transaction(func(tx *gorm.DB) error {
 		return w.submissionRepo.Update(tx, submission)
-	})
+	}); err != nil {
+		return err
+	}
+	w.invalidateSubmissionCaches(submission.UserID, submission.ContestID, submission.ID)
+	return nil
 }
 
 func (w *Worker) markSystemError(submission *model.Submission, message string) error {
@@ -273,4 +286,18 @@ func formatOptionalInt(value *int) string {
 		return "-"
 	}
 	return strconv.Itoa(*value)
+}
+
+func (w *Worker) invalidateSubmissionCaches(userID uint64, contestID *uint64, submissionID uint64) {
+	prefixes := []string{
+		"cache:stats:",
+		"cache:ranklist:",
+		"cache:problems:stats:",
+		fmt.Sprintf("cache:submissions:user:%d:", userID),
+		fmt.Sprintf("cache:submissions:detail:%d", submissionID),
+	}
+	if contestID != nil {
+		prefixes = append(prefixes, "cache:contests:ranklist:")
+	}
+	w.cache.DeletePrefixes(context.Background(), prefixes...)
 }

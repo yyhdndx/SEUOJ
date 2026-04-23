@@ -12,8 +12,5 @@
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_forum_topics_scope (scope_type, scope_id),
-    INDEX idx_forum_topics_author_id (author_id),
-    INDEX idx_forum_topics_pinned (is_pinned),
-    INDEX idx_forum_topics_last_reply_at (last_reply_at),
     CONSTRAINT fk_forum_topics_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

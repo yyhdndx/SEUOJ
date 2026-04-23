@@ -129,7 +129,7 @@ func (h *SubmissionHandler) ListMy(c *gin.Context) {
 		status = &query.Status
 	}
 
-	result, err := h.submissionService.ListMySubmissions(userID, query.Page, query.PageSize, problemID, contestID, status)
+	result, err := h.submissionService.ListMySubmissions(c.Request.Context(), userID, query.Page, query.PageSize, problemID, contestID, status)
 	if err != nil {
 		response.Error(c, "query submission list failed")
 		return
@@ -233,7 +233,7 @@ func (h *SubmissionHandler) Detail(c *gin.Context) {
 		return
 	}
 
-	result, err := h.submissionService.GetSubmissionDetail(userID, role, submissionID)
+	result, err := h.submissionService.GetSubmissionDetail(c.Request.Context(), userID, role, submissionID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrSubmissionNotFound):
