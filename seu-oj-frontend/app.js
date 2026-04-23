@@ -87,17 +87,38 @@ async function bootstrapApp() {
 }
 
 function initNavMenus() {
-  document.querySelectorAll(".nav-menu-panel").forEach((panel) => {
-    panel.addEventListener("click", (event) => {
-      const link = event.target.closest("a");
-      if (!link) {
-        return;
-      }
-      const menu = link.closest("details");
-      if (menu) {
-        menu.open = false;
-      }
-    });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const clickedMenu = target.closest(".nav-menu");
+    if (!clickedMenu) {
+      closeNavMenus();
+      return;
+    }
+
+    if (target.closest(".nav-menu-panel a")) {
+      closeNavMenus();
+      return;
+    }
+
+    closeNavMenus(clickedMenu);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeNavMenus();
+    }
+  });
+}
+
+function closeNavMenus(exceptMenu = null) {
+  document.querySelectorAll(".nav-menu[open]").forEach((menu) => {
+    if (menu !== exceptMenu) {
+      menu.open = false;
+    }
   });
 }
 
@@ -302,6 +323,7 @@ async function renderRoute() {
   const adminContestEditMatch = routePath.match(/^\/admin\/contests\/(\d+)\/edit$/);
   const adminContestDetailMatch = routePath.match(/^\/admin\/contests\/(\d+)$/);
   document.body.classList.toggle("problem-fullscreen", routePath.startsWith("/problems/") || !!contestProblemMatch);
+  document.body.classList.toggle("auth-page", routePath === "/auth");
 
   if (routePath === "/") return renderHome();
   if (routePath === "/playlists") return renderPlaylists();
@@ -347,17 +369,7 @@ async function renderRoute() {
 }
 function renderAuth() {
   app.innerHTML = `
-    <section class="split-hero">
-      <div class="hero-card">
-        <h1 class="view-title">Account Portal</h1>
-        <p class="view-subtitle">Minimal auth loop for problem solving and judging.</p>
-      </div>
-      <div class="hero-card">
-        <h3>Current State</h3>
-        <p class="mono">${state.user ? `${escapeHTML(state.user.username)} / ${escapeHTML(state.user.role)}` : "guest"}</p>
-      </div>
-    </section>
-    <div class="grid-form" style="margin-top:18px;">
+    <div style="margin:0 auto; max-width:460px;">
       <form id="login-form" class="detail-card">
         <h3>Login</h3>
         <label class="field-label">Username</label>
@@ -367,8 +379,12 @@ function renderAuth() {
         <div style="margin-top:14px;">
           <button class="primary-button" type="submit">Login</button>
         </div>
+        <p class="view-subtitle" style="margin:14px 0 0;">
+          No account yet?
+          <button class="link-button" id="show-register-btn" type="button">Register</button>
+        </p>
       </form>
-      <form id="register-form" class="detail-card">
+      <form id="register-form" class="detail-card hidden">
         <h3>Register</h3>
         <label class="field-label">Username</label>
         <input class="text-input" name="username" required />
@@ -379,11 +395,26 @@ function renderAuth() {
         <div style="margin-top:14px;">
           <button class="primary-button" type="submit">Register</button>
         </div>
+        <p class="view-subtitle" style="margin:14px 0 0;">
+          Already have an account?
+          <button class="link-button" id="show-login-btn" type="button">Login</button>
+        </p>
       </form>
     </div>
   `;
 
-  document.getElementById("login-form").addEventListener("submit", async (event) => {
+  const loginForm = document.getElementById("login-form");
+  const registerForm = document.getElementById("register-form");
+  document.getElementById("show-register-btn").addEventListener("click", () => {
+    loginForm.classList.add("hidden");
+    registerForm.classList.remove("hidden");
+  });
+  document.getElementById("show-login-btn").addEventListener("click", () => {
+    registerForm.classList.add("hidden");
+    loginForm.classList.remove("hidden");
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
@@ -402,7 +433,7 @@ function renderAuth() {
     }
   });
 
-  document.getElementById("register-form").addEventListener("submit", async (event) => {
+  registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
@@ -415,6 +446,8 @@ function renderAuth() {
         }),
       });
       setFlash("Register success, now login", false);
+      registerForm.classList.add("hidden");
+      loginForm.classList.remove("hidden");
     } catch (err) {
       setFlash(err.message, true);
     }
