@@ -76,8 +76,8 @@ async function renderProblemDetail(id) {
     }
     state.runResultPending = false;
     const draft = readSubmissionDraft(problem.id);
-    const selectedLanguage = draft?.last_language || draft?.language || "cpp";
-    const initialCode = readSubmissionDraftCode(problem.id, selectedLanguage) || getDefaultCodeTemplate(selectedLanguage);
+    const selectedLanguage = draft?.language || "cpp";
+    const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
     const sampleCases = Array.isArray(problem.testcases)
       ? problem.testcases.filter((item) => item.case_type === "sample")
       : [];
@@ -177,12 +177,14 @@ async function renderProblemDetail(id) {
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
-      saveSubmissionDraft(problem.id, currentLanguage, codeEditor.value);
-      const nextCode = readSubmissionDraftCode(problem.id, nextLanguage) || getDefaultCodeTemplate(nextLanguage);
-      if (state.problemCodeEditor) {
-        state.problemCodeEditor.setValue(nextCode);
-      } else {
-        codeEditor.value = nextCode;
+      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
+      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
+        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
+        if (state.problemCodeEditor) {
+          state.problemCodeEditor.setValue(nextTemplate);
+        } else {
+          codeEditor.value = nextTemplate;
+        }
       }
       currentLanguage = nextLanguage;
       state.problemCodeEditor?.setLanguage(nextLanguage);
@@ -203,9 +205,6 @@ async function renderProblemDetail(id) {
       const form = new FormData(document.getElementById("submit-form"));
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
-      if (!validateSubmissionCode(code, "run")) {
-        return;
-      }
       saveSubmissionDraft(problem.id, language, code);
       state.runResultPending = true;
       refreshRunResultPanel();
@@ -240,9 +239,6 @@ async function renderProblemDetail(id) {
       const form = new FormData(event.currentTarget);
       const language = (form.get("language") || "").toString();
       const code = (form.get("code") || "").toString();
-      if (!validateSubmissionCode(code, "submit")) {
-        return;
-      }
       saveSubmissionDraft(problem.id, language, code);
       try {
         const result = await apiFetch("/submissions", {
@@ -282,14 +278,6 @@ function getProblemDifficulty(problem) {
     label,
     className,
   };
-}
-
-function validateSubmissionCode(code, action = "submit") {
-  if (String(code || "").trim()) {
-    return true;
-  }
-  setFlash(`Code cannot be empty before ${action}.`, true);
-  return false;
 }
 
 function renderProblemTabButton(key, label, activeTab) {
