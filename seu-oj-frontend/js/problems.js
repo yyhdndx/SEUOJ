@@ -26,28 +26,29 @@ async function renderProblems() {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Display</th>
             <th>Title</th>
             <th>My Status</th>
             <th>Mode</th>
             <th>Time</th>
             <th>Memory</th>
-            <th>Created</th>
+            <th>Difficulty</th>
           </tr>
         </thead>
         <tbody>
-          ${state.problems.map((item) => `
+          ${state.problems.map((item) => {
+            const difficulty = getProblemDifficulty(item);
+            return `
             <tr>
-              <td>${item.id}</td>
               <td class="mono">${escapeHTML(item.display_id || "-")}</td>
               <td><a class="table-link" href="#/problems/${item.id}">${escapeHTML(item.title)}</a></td>
               <td>${renderProblemStatusPill(myProblemStatusMap[item.id])}</td>
               <td>${escapeHTML(item.judge_mode)}</td>
               <td>${item.time_limit_ms} ms</td>
               <td>${item.memory_limit_mb} MB</td>
-              <td class="mono">${escapeHTML(item.created_at)}</td>
+              <td>${escapeHTML(difficulty.label)}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     `;
