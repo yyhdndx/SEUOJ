@@ -207,6 +207,11 @@ async function renderProblemDetail(id) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before running.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       state.runResultPending = true;
       refreshRunResultPanel();
 
@@ -241,6 +246,11 @@ async function renderProblemDetail(id) {
       const language = (form.get("language") || "").toString();
       const code = (form.get("code") || "").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before submitting.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       try {
         const result = await apiFetch("/submissions", {
           method: "POST",

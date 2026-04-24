@@ -140,11 +140,19 @@ async function refreshCurrentUser() {
 function setFlash(message, isError = false) {
   if (!message) {
     flash.className = "flash hidden";
-    flash.textContent = "";
+    flash.innerHTML = "";
+    flash.removeAttribute("role");
+    flash.removeAttribute("aria-live");
     return;
   }
-  flash.className = `flash ${isError ? "error" : ""}`;
-  flash.textContent = message;
+  flash.className = `flash flash-popup ${isError ? "error" : ""}`;
+  flash.setAttribute("role", isError ? "alertdialog" : "status");
+  flash.setAttribute("aria-live", isError ? "assertive" : "polite");
+  flash.innerHTML = `
+    <div class="flash-message">${escapeHTML(message)}</div>
+    <button class="flash-close" type="button" aria-label="Close notification">Close</button>
+  `;
+  flash.querySelector(".flash-close")?.addEventListener("click", () => setFlash(""));
 }
 
 function renderFatalError(err, source = "unknown") {
