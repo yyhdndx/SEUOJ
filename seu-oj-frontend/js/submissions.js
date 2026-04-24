@@ -486,19 +486,96 @@ function submissionDraftKey(problemID) {
 }
 
 function saveSubmissionDraft(problemID, language, code) {
-  localStorage.setItem(submissionDraftKey(problemID), JSON.stringify({
+  const key = submissionDraftKey(problemID);
+  const savedAt = new Date().toISOString();
+  const draft = readSubmissionDraftBundle(problemID) || { codes: {} };
+  const codes = draft.codes || {};
+  codes[language] = {
+    code,
+    saved_at: savedAt,
+  };
+  localStorage.setItem(key, JSON.stringify({
     language,
     code,
-    saved_at: new Date().toISOString(),
+    saved_at: savedAt,
+    codes,
   }));
 }
 
-function readSubmissionDraft(problemID) {
+function readSubmissionDraft(problemID, language = "") {
+  const draft = readSubmissionDraftBundle(problemID);
+  if (!draft) {
+    return null;
+  }
+
+  if (language) {
+    const languageDraft = draft.codes?.[language];
+    if (!languageDraft) {
+      return null;
+    }
+    return {
+      language,
+      code: languageDraft.code || "",
+      saved_at: languageDraft.saved_at || draft.saved_at || "",
+      codes: draft.codes,
+    };
+  }
+
+  const selectedLanguage = draft.language || Object.keys(draft.codes || {})[0] || "";
+  const selectedDraft = draft.codes?.[selectedLanguage];
+  return {
+    language: selectedLanguage,
+    code: selectedDraft?.code ?? draft.code ?? "",
+    saved_at: selectedDraft?.saved_at || draft.saved_at || "",
+    codes: draft.codes,
+  };
+}
+
+function readSubmissionDraftBundle(problemID) {
   try {
     const raw = localStorage.getItem(submissionDraftKey(problemID));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) {
+      return null;
+    }
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== "object") {
+      return null;
+    }
+    if (draft.codes && typeof draft.codes === "object") {
+      return draft;
+    }
+    if (draft.language) {
+      return {
+        ...draft,
+        codes: {
+          [draft.language]: {
+            code: draft.code || "",
+            saved_at: draft.saved_at || "",
+          },
+        },
+      };
+    }
+    return null;
   } catch {
     return null;
+  }
+}
+
+function readSubmissionDraftCode(problemID, language) {
+  const draft = readSubmissionDraft(problemID, language);
+  return draft ? draft.code : getDefaultCodeTemplate(language);
+}
+
+function getProblemEditorValue(textarea) {
+  return state.problemCodeEditor?.getValue ? state.problemCodeEditor.getValue() : (textarea?.value || "");
+}
+
+function setProblemEditorValue(textarea, value) {
+  const next = value ?? "";
+  if (state.problemCodeEditor?.setValue) {
+    state.problemCodeEditor.setValue(next);
+  } else if (textarea) {
+    textarea.value = next;
   }
 }
 

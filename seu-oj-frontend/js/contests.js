@@ -323,15 +323,8 @@ async function renderContestProblemDetail(contestID, problemID) {
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
-      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
-      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
-        if (state.problemCodeEditor) {
-          state.problemCodeEditor.setValue(nextTemplate);
-        } else {
-          codeEditor.value = nextTemplate;
-        }
-      }
+      saveSubmissionDraft(problem.id, currentLanguage, getProblemEditorValue(codeEditor));
+      setProblemEditorValue(codeEditor, readSubmissionDraftCode(problem.id, nextLanguage));
       currentLanguage = nextLanguage;
       state.problemCodeEditor?.setLanguage(nextLanguage);
     });
