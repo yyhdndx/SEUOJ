@@ -1,12 +1,15 @@
-﻿package service
+package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 	"seu-oj-backend/internal/repository"
@@ -22,17 +25,20 @@ type ProblemService struct {
 	db                  *gorm.DB
 	problemRepo         *repository.ProblemRepository
 	problemTestcaseRepo *repository.ProblemTestcaseRepository
+	cache               *cache.Cache
 }
 
 func NewProblemService(
 	db *gorm.DB,
 	problemRepo *repository.ProblemRepository,
 	problemTestcaseRepo *repository.ProblemTestcaseRepository,
+	cacheStore *cache.Cache,
 ) *ProblemService {
 	return &ProblemService{
 		db:                  db,
 		problemRepo:         problemRepo,
 		problemTestcaseRepo: problemTestcaseRepo,
+		cache:               cacheStore,
 	}
 }
 
@@ -90,6 +96,7 @@ func (s *ProblemService) CreateProblem(ctxUserID uint64, ctxRole string, req dto
 		return 0, err
 	}
 
+	s.invalidate()
 	return problem.ID, nil
 }
 
@@ -126,7 +133,40 @@ func (s *ProblemService) ListAdminProblems(ctxRole string, page, pageSize int, k
 	}, nil
 }
 
-func (s *ProblemService) ListProblems(page, pageSize int, keyword string) (*dto.ProblemListResponse, error) {
+func (s *ProblemService) ListProblems(ctx context.Context, page, pageSize int, keyword string) (*dto.ProblemListResponse, error) {
+	if page == 1 && pageSize <= 100 && strings.TrimSpace(keyword) == "" {
+		return s.listRecentProblems(ctx, pageSize)
+	}
+
+	key := fmt.Sprintf("cache:problems:list:p%d:s%d:k%s", page, pageSize, strings.TrimSpace(keyword))
+	return cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.ProblemListResponse, error) {
+		return s.listProblems(page, pageSize, keyword)
+	})
+}
+
+func (s *ProblemService) listRecentProblems(ctx context.Context, pageSize int) (*dto.ProblemListResponse, error) {
+	const cachedLimit = 100
+	key := fmt.Sprintf("cache:problems:list:recent:limit%d", cachedLimit)
+	cached, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.ProblemListResponse, error) {
+		return s.listProblems(1, cachedLimit, "")
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := cached.List
+	if len(items) > pageSize {
+		items = items[:pageSize]
+	}
+	return &dto.ProblemListResponse{
+		List:     items,
+		Total:    cached.Total,
+		Page:     1,
+		PageSize: pageSize,
+	}, nil
+}
+
+func (s *ProblemService) listProblems(page, pageSize int, keyword string) (*dto.ProblemListResponse, error) {
 	problems, total, err := s.problemRepo.ListVisible(page, pageSize, keyword)
 	if err != nil {
 		return nil, err
@@ -156,6 +196,13 @@ func (s *ProblemService) ListProblems(page, pageSize int, keyword string) (*dto.
 }
 
 func (s *ProblemService) GetProblemDetail(id uint64) (*dto.ProblemDetailResponse, error) {
+	key := fmt.Sprintf("cache:problems:detail:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 60*time.Second, func() (*dto.ProblemDetailResponse, error) {
+		return s.getProblemDetail(id)
+	})
+}
+
+func (s *ProblemService) getProblemDetail(id uint64) (*dto.ProblemDetailResponse, error) {
 	problem, err := s.problemRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -247,12 +294,16 @@ func (s *ProblemService) UpdateProblem(ctxRole string, id uint64, req dto.Create
 		})
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.problemRepo.Update(tx, problem); err != nil {
 			return err
 		}
 		return s.problemTestcaseRepo.ReplaceByProblemID(tx, problem.ID, testcases)
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ProblemService) DeleteProblem(ctxRole string, id uint64) error {
@@ -267,12 +318,16 @@ func (s *ProblemService) DeleteProblem(ctxRole string, id uint64) error {
 		return err
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("problem_id = ?", id).Delete(&model.ProblemSolution{}).Error; err != nil {
 			return err
 		}
 		return s.problemRepo.Delete(tx, id)
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate bool) ([]dto.ProblemSolutionResponse, error) {
@@ -327,6 +382,7 @@ func (s *ProblemService) CreateProblemSolution(userID uint64, role string, probl
 	if err := s.db.Create(&solution).Error; err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	resp := dto.ProblemSolutionResponse{ID: solution.ID, ProblemID: solution.ProblemID, Title: solution.Title, Content: solution.Content, Visibility: solution.Visibility, AuthorID: solution.AuthorID, CreatedAt: solution.CreatedAt, UpdatedAt: solution.UpdatedAt}
 	return &resp, nil
 }
@@ -351,6 +407,7 @@ func (s *ProblemService) UpdateProblemSolution(userID uint64, role string, probl
 	if err := s.db.Save(&solution).Error; err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	resp := dto.ProblemSolutionResponse{ID: solution.ID, ProblemID: solution.ProblemID, Title: solution.Title, Content: solution.Content, Visibility: solution.Visibility, AuthorID: solution.AuthorID, CreatedAt: solution.CreatedAt, UpdatedAt: solution.UpdatedAt}
 	return &resp, nil
 }
@@ -369,7 +426,11 @@ func (s *ProblemService) DeleteProblemSolution(userID uint64, role string, probl
 	if role != "admin" && solution.AuthorID != userID {
 		return ErrPermissionDenied
 	}
-	return s.db.Delete(&solution).Error
+	if err := s.db.Delete(&solution).Error; err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTestcase, solutions []dto.ProblemSolutionResponse) dto.ProblemDetailResponse {
@@ -421,6 +482,13 @@ func filterSampleTestcases(testcases []model.ProblemTestcase) []model.ProblemTes
 }
 
 func (s *ProblemService) GetProblemStats(id uint64) (*dto.ProblemStatsResponse, error) {
+	key := fmt.Sprintf("cache:problems:stats:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 15*time.Second, func() (*dto.ProblemStatsResponse, error) {
+		return s.getProblemStats(id)
+	})
+}
+
+func (s *ProblemService) getProblemStats(id uint64) (*dto.ProblemStatsResponse, error) {
 	problem, err := s.problemRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -456,4 +524,8 @@ func (s *ProblemService) GetProblemStats(id uint64) (*dto.ProblemStatsResponse, 
 	}
 
 	return resp, nil
+}
+
+func (s *ProblemService) invalidate() {
+	s.cache.DeletePrefixes(context.Background(), "cache:problems:", "cache:stats:", "cache:ranklist:", "cache:contests:")
 }

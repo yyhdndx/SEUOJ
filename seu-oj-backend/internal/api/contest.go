@@ -31,7 +31,7 @@ func (h *ContestHandler) List(c *gin.Context) {
 	if query.PageSize == 0 {
 		query.PageSize = 20
 	}
-	result, err := h.contestService.List(query.Page, query.PageSize, query.Keyword, query.Status)
+	result, err := h.contestService.List(c.Request.Context(), query.Page, query.PageSize, query.Keyword, query.Status)
 	if err != nil {
 		response.Error(c, "query contest list failed")
 		return

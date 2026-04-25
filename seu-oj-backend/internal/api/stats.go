@@ -18,7 +18,7 @@ func NewStatsHandler(statsService *service.StatsService) *StatsHandler {
 }
 
 func (h *StatsHandler) Overview(c *gin.Context) {
-	result, err := h.statsService.Overview()
+	result, err := h.statsService.Overview(c.Request.Context())
 	if err != nil {
 		response.Error(c, "query overview stats failed")
 		return
@@ -32,7 +32,7 @@ func (h *StatsHandler) Me(c *gin.Context) {
 		return
 	}
 
-	result, err := h.statsService.My(userID)
+	result, err := h.statsService.My(c.Request.Context(), userID)
 	if err != nil {
 		response.Error(c, "query user stats failed")
 		return

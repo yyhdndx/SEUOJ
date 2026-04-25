@@ -1,12 +1,15 @@
-﻿package service
+package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 )
@@ -18,11 +21,27 @@ var (
 	ErrForumLocked        = errors.New("forum topic locked")
 )
 
-type ForumService struct{ db *gorm.DB }
+type ForumService struct {
+	db    *gorm.DB
+	cache *cache.Cache
+}
 
-func NewForumService(db *gorm.DB) *ForumService { return &ForumService{db: db} }
+func NewForumService(db *gorm.DB, cacheStore *cache.Cache) *ForumService {
+	return &ForumService{db: db, cache: cacheStore}
+}
 
 func (s *ForumService) ListTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64) (*dto.ForumTopicListResponse, error) {
+	scopeValue := uint64(0)
+	if scopeID != nil {
+		scopeValue = *scopeID
+	}
+	key := fmt.Sprintf("cache:forum:topics:p%d:s%d:k%s:t%s:id%d", page, pageSize, strings.TrimSpace(keyword), strings.TrimSpace(scopeType), scopeValue)
+	return cache.GetOrSet(context.Background(), s.cache, key, 20*time.Second, func() (*dto.ForumTopicListResponse, error) {
+		return s.listTopics(page, pageSize, keyword, scopeType, scopeID)
+	})
+}
+
+func (s *ForumService) listTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64) (*dto.ForumTopicListResponse, error) {
 	query := s.db.Table("forum_topics t").
 		Select("t.id, t.title, LEFT(t.content, 160) AS content_preview, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
 		Joins("JOIN users u ON u.id = t.author_id")
@@ -40,13 +59,20 @@ func (s *ForumService) ListTopics(page, pageSize int, keyword, scopeType string,
 		return nil, err
 	}
 	var list []dto.ForumTopicListItem
-	if err := query.Order("t.is_pinned DESC, COALESCE(t.last_reply_at, t.created_at) DESC, t.id DESC").Offset((page-1)*pageSize).Limit(pageSize).Scan(&list).Error; err != nil {
+	if err := query.Order("t.is_pinned DESC, COALESCE(t.last_reply_at, t.created_at) DESC, t.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&list).Error; err != nil {
 		return nil, err
 	}
 	return &dto.ForumTopicListResponse{List: list, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
 func (s *ForumService) GetTopicDetail(id uint64) (*dto.ForumTopicDetailResponse, error) {
+	key := fmt.Sprintf("cache:forum:topics:detail:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 30*time.Second, func() (*dto.ForumTopicDetailResponse, error) {
+		return s.getTopicDetail(id)
+	})
+}
+
+func (s *ForumService) getTopicDetail(id uint64) (*dto.ForumTopicDetailResponse, error) {
 	var topic dto.ForumTopicDetailResponse
 	if err := s.db.Table("forum_topics t").
 		Select("t.id, t.title, t.content, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
@@ -97,6 +123,7 @@ func (s *ForumService) CreateTopic(userID uint64, req dto.CreateForumTopicReques
 	if err := s.db.Create(&topic).Error; err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	return s.GetTopicDetail(topic.ID)
 }
 
@@ -124,6 +151,7 @@ func (s *ForumService) UpdateTopic(userID uint64, role string, topicID uint64, r
 	if err := s.db.Save(&topic).Error; err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	return s.GetTopicDetail(topic.ID)
 }
 
@@ -138,12 +166,16 @@ func (s *ForumService) DeleteTopic(userID uint64, role string, topicID uint64) e
 	if role != "admin" && role != "teacher" && topic.AuthorID != userID {
 		return ErrForumForbidden
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("topic_id = ?", topicID).Delete(&model.ForumReply{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&topic).Error
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ForumService) CreateReply(userID uint64, role string, topicID uint64, req dto.CreateForumReplyRequest) (*dto.ForumReplyResponse, error) {
@@ -167,6 +199,7 @@ func (s *ForumService) CreateReply(userID uint64, role string, topicID uint64, r
 	}); err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	var result dto.ForumReplyResponse
 	if err := s.db.Table("forum_replies r").
 		Select("r.id, r.topic_id, r.content, r.author_id, u.username AS author_name, r.created_at, r.updated_at").
@@ -193,6 +226,7 @@ func (s *ForumService) UpdateReply(userID uint64, role string, replyID uint64, r
 	if err := s.db.Save(&reply).Error; err != nil {
 		return nil, err
 	}
+	s.invalidate()
 	var result dto.ForumReplyResponse
 	if err := s.db.Table("forum_replies r").
 		Select("r.id, r.topic_id, r.content, r.author_id, u.username AS author_name, r.created_at, r.updated_at").
@@ -215,7 +249,7 @@ func (s *ForumService) DeleteReply(userID uint64, role string, replyID uint64) e
 	if role != "admin" && role != "teacher" && reply.AuthorID != userID {
 		return ErrForumForbidden
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&reply).Error; err != nil {
 			return err
 		}
@@ -227,5 +261,13 @@ func (s *ForumService) DeleteReply(userID uint64, role string, replyID uint64) e
 			updates["last_reply_at"] = nil
 		}
 		return tx.Model(&model.ForumTopic{}).Where("id = ?", reply.TopicID).Updates(updates).Error
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
+}
+
+func (s *ForumService) invalidate() {
+	s.cache.DeletePrefixes(context.Background(), "cache:forum:")
 }

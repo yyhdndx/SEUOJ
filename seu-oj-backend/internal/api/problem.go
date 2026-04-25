@@ -1,4 +1,4 @@
-﻿package api
+package api
 
 import (
 	"errors"
@@ -106,7 +106,7 @@ func (h *ProblemHandler) List(c *gin.Context) {
 		query.PageSize = 20
 	}
 
-	result, err := h.problemService.ListProblems(query.Page, query.PageSize, query.Keyword)
+	result, err := h.problemService.ListProblems(c.Request.Context(), query.Page, query.PageSize, query.Keyword)
 	if err != nil {
 		response.Error(c, "query problem list failed")
 		return

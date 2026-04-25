@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"seu-oj-backend/internal/bootstrap"
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/config"
 	"seu-oj-backend/internal/database"
 	"seu-oj-backend/internal/judge"
@@ -59,7 +60,8 @@ func main() {
 		log.Fatalf("validate sandbox failed: %v", err)
 	}
 
-	worker := judge.NewWorker(db, judgeQueue, problemRepo, problemTestcaseRepo, submissionRepo, submissionResultRepo, sandboxRunner)
+	cacheStore := cache.New(redisClient)
+	worker := judge.NewWorker(db, judgeQueue, problemRepo, problemTestcaseRepo, submissionRepo, submissionResultRepo, sandboxRunner, cacheStore)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	worker.Start(ctx)

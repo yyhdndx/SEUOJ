@@ -3,7 +3,7 @@ package model
 import "time"
 
 type Problem struct {
-	ID            uint64    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ID            uint64    `gorm:"column:id;primaryKey;autoIncrement;index:idx_problems_visible_id,priority:2" json:"id"`
 	DisplayID     string    `gorm:"column:display_id" json:"display_id"`
 	Title         string    `gorm:"column:title" json:"title"`
 	Description   string    `gorm:"column:description" json:"description"`
@@ -17,7 +17,7 @@ type Problem struct {
 	Difficulty    int       `gorm:"column:difficulty" json:"difficulty"`
 	TimeLimitMS   int       `gorm:"column:time_limit_ms" json:"time_limit_ms"`
 	MemoryLimitMB int       `gorm:"column:memory_limit_mb" json:"memory_limit_mb"`
-	Visible       bool      `gorm:"column:visible" json:"visible"`
+	Visible       bool      `gorm:"column:visible;index:idx_problems_visible_id,priority:1" json:"visible"`
 	CreatedBy     uint64    `gorm:"column:created_by" json:"created_by"`
 	CreatedAt     time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt     time.Time `gorm:"column:updated_at" json:"updated_at"`

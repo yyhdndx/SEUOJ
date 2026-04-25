@@ -1,6 +1,7 @@
-﻿package service
+package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -9,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 	"seu-oj-backend/internal/repository"
@@ -30,6 +32,7 @@ type ContestService struct {
 	db                  *gorm.DB
 	problemRepo         *repository.ProblemRepository
 	problemTestcaseRepo *repository.ProblemTestcaseRepository
+	cache               *cache.Cache
 }
 
 type contestListRecord struct {
@@ -67,16 +70,46 @@ type contestRankEntry struct {
 	Cells           []contestProblemCellState
 }
 
-func NewContestService(db *gorm.DB, problemRepo *repository.ProblemRepository, problemTestcaseRepo *repository.ProblemTestcaseRepository) *ContestService {
+func NewContestService(db *gorm.DB, problemRepo *repository.ProblemRepository, problemTestcaseRepo *repository.ProblemTestcaseRepository, cacheStore *cache.Cache) *ContestService {
 	return &ContestService{
 		db:                  db,
 		problemRepo:         problemRepo,
 		problemTestcaseRepo: problemTestcaseRepo,
+		cache:               cacheStore,
 	}
 }
 
-func (s *ContestService) List(page, pageSize int, keyword, status string) (*dto.ContestListResponse, error) {
-	return s.list(page, pageSize, keyword, status, false)
+func (s *ContestService) List(ctx context.Context, page, pageSize int, keyword, status string) (*dto.ContestListResponse, error) {
+	if page == 1 && pageSize <= 50 && strings.TrimSpace(keyword) == "" && strings.TrimSpace(status) == "" {
+		return s.listRecentContests(ctx, pageSize)
+	}
+
+	key := fmt.Sprintf("cache:contests:list:p%d:s%d:k%s:status%s", page, pageSize, strings.TrimSpace(keyword), strings.TrimSpace(status))
+	return cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.ContestListResponse, error) {
+		return s.list(page, pageSize, keyword, status, false)
+	})
+}
+
+func (s *ContestService) listRecentContests(ctx context.Context, pageSize int) (*dto.ContestListResponse, error) {
+	const cachedLimit = 50
+	key := fmt.Sprintf("cache:contests:list:recent:limit%d", cachedLimit)
+	cached, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.ContestListResponse, error) {
+		return s.list(1, cachedLimit, "", "", false)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	items := cached.List
+	if len(items) > pageSize {
+		items = items[:pageSize]
+	}
+	return &dto.ContestListResponse{
+		List:     items,
+		Total:    cached.Total,
+		Page:     1,
+		PageSize: pageSize,
+	}, nil
 }
 
 func (s *ContestService) ListAdmin(role string, page, pageSize int, keyword, status string) (*dto.ContestListResponse, error) {
@@ -111,12 +144,51 @@ func (s *ContestService) list(page, pageSize int, keyword, status string, includ
 	if err := query.Order("start_time DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&contests).Error; err != nil {
 		return nil, err
 	}
-	items := make([]dto.ContestListItem, 0, len(contests))
+
+	contestIDs := make([]uint64, 0, len(contests))
 	for _, contest := range contests {
-		registeredCount, problemCount, err := s.countContestMeta(contest.ID)
-		if err != nil {
+		contestIDs = append(contestIDs, contest.ID)
+	}
+
+	type countRow struct {
+		ContestID uint64 `gorm:"column:contest_id"`
+		Count     int64  `gorm:"column:count"`
+	}
+
+	registeredCountByContest := map[uint64]int64{}
+	if len(contestIDs) > 0 {
+		var rows []countRow
+		if err := s.db.Table("contest_registrations").
+			Select("contest_id, COUNT(*) AS count").
+			Where("contest_id IN ?", contestIDs).
+			Group("contest_id").
+			Scan(&rows).Error; err != nil {
 			return nil, err
 		}
+		for _, row := range rows {
+			registeredCountByContest[row.ContestID] = row.Count
+		}
+	}
+
+	problemCountByContest := map[uint64]int64{}
+	if len(contestIDs) > 0 {
+		var rows []countRow
+		if err := s.db.Table("contest_problems").
+			Select("contest_id, COUNT(*) AS count").
+			Where("contest_id IN ?", contestIDs).
+			Group("contest_id").
+			Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			problemCountByContest[row.ContestID] = row.Count
+		}
+	}
+
+	items := make([]dto.ContestListItem, 0, len(contests))
+	for _, contest := range contests {
+		registeredCount := registeredCountByContest[contest.ID]
+		problemCount := problemCountByContest[contest.ID]
 		items = append(items, dto.ContestListItem{
 			ID:               contest.ID,
 			Title:            contest.Title,
@@ -136,6 +208,13 @@ func (s *ContestService) list(page, pageSize int, keyword, status string, includ
 }
 
 func (s *ContestService) GetByID(id uint64) (*dto.ContestDetailResponse, error) {
+	key := fmt.Sprintf("cache:contests:detail:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 30*time.Second, func() (*dto.ContestDetailResponse, error) {
+		return s.getByID(id)
+	})
+}
+
+func (s *ContestService) getByID(id uint64) (*dto.ContestDetailResponse, error) {
 	contest, err := s.getContest(id)
 	if err != nil {
 		return nil, err
@@ -176,6 +255,7 @@ func (s *ContestService) Create(userID uint64, role string, req dto.CreateContes
 	}); err != nil {
 		return 0, err
 	}
+	s.invalidate()
 	return contest.ID, nil
 }
 
@@ -200,7 +280,7 @@ func (s *ContestService) Update(role string, id uint64, req dto.CreateContestReq
 	contest.AllowPractice = updatedContest.AllowPractice
 	contest.RanklistFreezeAt = updatedContest.RanklistFreezeAt
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(contest).Error; err != nil {
 			return err
 		}
@@ -211,7 +291,11 @@ func (s *ContestService) Update(role string, id uint64, req dto.CreateContestReq
 			problems[i].ContestID = id
 		}
 		return tx.Create(&problems).Error
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ContestService) Delete(role string, id uint64) error {
@@ -221,7 +305,7 @@ func (s *ContestService) Delete(role string, id uint64) error {
 	if _, err := s.getContest(id); err != nil {
 		return err
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("contest_id = ?", id).Delete(&model.ContestRegistration{}).Error; err != nil {
 			return err
 		}
@@ -229,7 +313,11 @@ func (s *ContestService) Delete(role string, id uint64) error {
 			return err
 		}
 		return tx.Delete(&model.Contest{}, id).Error
-	})
+	}); err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ContestService) Register(userID uint64, role string, contestID uint64) error {
@@ -244,7 +332,11 @@ func (s *ContestService) Register(userID uint64, role string, contestID uint64) 
 		return ErrContestRegistrationClosed
 	}
 	registration := model.ContestRegistration{ContestID: contestID, UserID: userID}
-	return s.db.Where("contest_id = ? AND user_id = ?", contestID, userID).FirstOrCreate(&registration).Error
+	if err := s.db.Where("contest_id = ? AND user_id = ?", contestID, userID).FirstOrCreate(&registration).Error; err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ContestService) GetMe(userID uint64, role string, contestID uint64) (*dto.ContestMeResponse, error) {
@@ -321,6 +413,13 @@ func (s *ContestService) GetProblemDetail(userID uint64, role string, contestID,
 }
 
 func (s *ContestService) GetRanklist(id uint64) (*dto.ContestRanklistResponse, error) {
+	key := fmt.Sprintf("cache:contests:ranklist:%d", id)
+	return cache.GetOrSet(context.Background(), s.cache, key, 10*time.Second, func() (*dto.ContestRanklistResponse, error) {
+		return s.getRanklist(id)
+	})
+}
+
+func (s *ContestService) getRanklist(id uint64) (*dto.ContestRanklistResponse, error) {
 	contest, err := s.getContest(id)
 	if err != nil {
 		return nil, err
@@ -552,6 +651,7 @@ func (s *ContestService) CreateAnnouncement(userID uint64, role string, contestI
 	if err := s.db.Create(&item).Error; err != nil {
 		return 0, err
 	}
+	s.invalidate()
 	return item.ID, nil
 }
 
@@ -572,7 +672,11 @@ func (s *ContestService) UpdateAnnouncement(role string, contestID, announcement
 	item.Title = strings.TrimSpace(req.Title)
 	item.Content = req.Content
 	item.IsPinned = req.IsPinned
-	return s.db.Save(&item).Error
+	if err := s.db.Save(&item).Error; err != nil {
+		return err
+	}
+	s.invalidate()
+	return nil
 }
 
 func (s *ContestService) DeleteAnnouncement(role string, contestID, announcementID uint64) error {
@@ -589,7 +693,12 @@ func (s *ContestService) DeleteAnnouncement(role string, contestID, announcement
 	if result.RowsAffected == 0 {
 		return ErrContestAnnouncementNotFound
 	}
+	s.invalidate()
 	return nil
+}
+
+func (s *ContestService) invalidate() {
+	s.cache.DeletePrefixes(context.Background(), "cache:contests:", "cache:stats:")
 }
 
 func (s *ContestService) listAnnouncements(contestID uint64, page, pageSize int) (*dto.ContestAnnouncementListResponse, error) {
@@ -631,14 +740,39 @@ func (s *ContestService) loadContestProblemItems(contestID uint64) ([]dto.Contes
 	if err := s.db.Where("contest_id = ?", contestID).Order("display_order ASC, id ASC").Find(&mappings).Error; err != nil {
 		return nil, err
 	}
+
+	problemIDs := make([]uint64, 0, len(mappings))
+	for _, mapping := range mappings {
+		problemIDs = append(problemIDs, mapping.ProblemID)
+	}
+
+	type problemBrief struct {
+		ID            uint64 `gorm:"column:id"`
+		Title         string `gorm:"column:title"`
+		JudgeMode     string `gorm:"column:judge_mode"`
+		TimeLimitMS   int    `gorm:"column:time_limit_ms"`
+		MemoryLimitMB int    `gorm:"column:memory_limit_mb"`
+	}
+
+	problemByID := map[uint64]problemBrief{}
+	if len(problemIDs) > 0 {
+		var problems []problemBrief
+		if err := s.db.Table("problems").
+			Select("id, title, judge_mode, time_limit_ms, memory_limit_mb").
+			Where("id IN ?", problemIDs).
+			Scan(&problems).Error; err != nil {
+			return nil, err
+		}
+		for _, problem := range problems {
+			problemByID[problem.ID] = problem
+		}
+	}
+
 	items := make([]dto.ContestProblemItem, 0, len(mappings))
 	for _, mapping := range mappings {
-		problem, err := s.problemRepo.GetByID(mapping.ProblemID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				continue
-			}
-			return nil, err
+		problem, ok := problemByID[mapping.ProblemID]
+		if !ok {
+			continue
 		}
 		items = append(items, dto.ContestProblemItem{
 			ID:            mapping.ID,
@@ -912,4 +1046,3 @@ func defaultContestProblemCode(index int) string {
 	}
 	return fmt.Sprintf("P%d", index+1)
 }
-
