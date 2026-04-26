@@ -1,8 +1,8 @@
 ﻿# STORY-004-home-dashboard-restructure
 
-- Status: `todo`
+- Status: `review`
 - Priority: `P1`
-- Assignee: `unassigned`
+- Assignee: `Codex`
 - Reviewer: `unassigned`
 - Created At: `2026-04-14`
 - Target Version: `v0.1`
@@ -253,5 +253,4 @@ node --check "D:\desk\软件工程\SEUOJ\seu-oj-frontend\js\general-pages.js"
 3. 角色化快捷入口
 4. 次级统计降权
 5. 公告 / 论坛摘要轻量化
-
 

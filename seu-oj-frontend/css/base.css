@@ -628,6 +628,194 @@ body.problem-fullscreen .content {
   box-shadow: var(--shadow-soft);
 }
 
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 18px;
+  align-items: stretch;
+  padding: 22px;
+  border: 1px solid rgba(25, 59, 115, 0.22);
+  background:
+    linear-gradient(135deg, rgba(45, 91, 159, 0.13), rgba(255, 253, 248, 0.9) 48%),
+    var(--paper);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.dashboard-title {
+  margin: 12px 0 0;
+  font-size: 34px;
+  line-height: 1.12;
+}
+
+.dashboard-hero-action {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(45, 91, 159, 0.16);
+  background: rgba(255, 253, 248, 0.78);
+  border-radius: var(--radius);
+}
+
+.dashboard-section,
+.dashboard-main-grid,
+.dashboard-secondary-grid,
+.dashboard-bottom-grid {
+  margin-top: 18px;
+}
+
+.dashboard-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-action-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-action-card {
+  display: grid;
+  align-content: start;
+  min-height: 138px;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  transition: 120ms ease;
+}
+
+.dashboard-action-card:hover {
+  border-color: rgba(45, 91, 159, 0.32);
+  transform: translateY(-1px);
+}
+
+.dashboard-action-card.primary {
+  border-color: rgba(45, 91, 159, 0.34);
+  background: linear-gradient(180deg, rgba(45, 91, 159, 0.10), rgba(255, 253, 248, 0.96));
+}
+
+.dashboard-action-label {
+  color: var(--accent-deep);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 18px;
+}
+
+.dashboard-secondary-grid,
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.dashboard-focus-card {
+  border-color: rgba(45, 91, 159, 0.2);
+}
+
+.dashboard-activity-card,
+.dashboard-muted-card {
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 241, 228, 0.58));
+}
+
+.dashboard-verdict {
+  border-radius: var(--radius-sm);
+}
+
+.dashboard-accepted-strip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed rgba(47, 109, 63, 0.28);
+  background: rgba(47, 109, 63, 0.07);
+  flex-wrap: wrap;
+}
+
+.dashboard-empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 22px;
+  border: 1px dashed var(--line-strong);
+  background: rgba(255, 253, 248, 0.62);
+}
+
+.dashboard-activity-list,
+.dashboard-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-activity-row,
+.dashboard-list-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(104, 97, 79, 0.16);
+  background: rgba(255, 253, 248, 0.78);
+  border-radius: var(--radius-sm);
+}
+
+.dashboard-activity-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.dashboard-list-row {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.dashboard-list-row .view-subtitle {
+  grid-column: 2;
+  margin-top: 0;
+}
+
+.dashboard-activity-row:hover,
+.dashboard-list-row:hover {
+  border-color: rgba(45, 91, 159, 0.26);
+  background: rgba(45, 91, 159, 0.06);
+}
+
+.dashboard-contest-feature {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.dashboard-contest-feature h4 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.dashboard-mini-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-mini-metrics span {
+  padding: 6px 8px;
+  border: 1px solid rgba(104, 97, 79, 0.16);
+  background: rgba(255, 253, 248, 0.7);
+  border-radius: var(--radius-sm);
+}
+
 .mono {
   font-family: "IBM Plex Mono", "Consolas", monospace;
 }
@@ -679,9 +867,28 @@ body.problem-fullscreen .content {
   .workspace,
   .detail-grid,
   .split-hero,
+  .dashboard-hero,
+  .dashboard-main-grid,
+  .dashboard-secondary-grid,
+  .dashboard-bottom-grid,
+  .dashboard-action-grid,
+  .dashboard-action-grid.compact,
   .toolbar,
   .grid-form {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-title {
+    font-size: 28px;
+  }
+
+  .dashboard-activity-row,
+  .dashboard-list-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-list-row .view-subtitle {
+    grid-column: auto;
   }
 
   .topnav {

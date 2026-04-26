@@ -411,21 +411,29 @@ async function renderHome() {
   let myStats = null;
   let adminStats = null;
   let contests = [];
+  let announcements = [];
+  let forumTopics = [];
 
   try {
-    const [problemsData, overviewData, contestData] = await Promise.all([
+    const [problemsData, overviewData, contestData, announcementsData, forumData] = await Promise.all([
       apiFetch("/problems?page=1&page_size=5", { method: "GET" }),
       apiFetch("/stats/overview", { method: "GET" }).catch(() => null),
       apiFetch("/contests?page=1&page_size=6", { method: "GET" }).catch(() => null),
+      apiFetch("/announcements?page=1&page_size=3", { method: "GET" }).catch(() => null),
+      apiFetch("/forum/topics?page=1&page_size=3", { method: "GET" }).catch(() => null),
     ]);
     latestProblems = problemsData.list || [];
     totalProblems = problemsData.total || latestProblems.length;
     overviewStats = overviewData;
     contests = contestData?.list || [];
+    announcements = announcementsData?.list || [];
+    forumTopics = forumData?.list || [];
   } catch {
     latestProblems = [];
     totalProblems = 0;
     contests = [];
+    announcements = [];
+    forumTopics = [];
   }
 
   if (state.token) {
@@ -451,268 +459,134 @@ async function renderHome() {
     }
   }
 
+  const userRole = state.user?.role || "guest";
+  const isAdmin = userRole === "admin";
+  const isTeacher = state.user && isTeacherUser();
+  const showTeachingSnapshot = userRole === "teacher";
+  const primaryAction = getHomePrimaryAction(latestSubmission);
+  const quickActions = getHomeQuickActions(userRole, latestSubmission);
+  const runningContest = contests.find((item) => item.status === "running");
+  const nextContest = runningContest || contests.find((item) => item.status === "upcoming") || contests[0] || null;
+
   app.innerHTML = `
-    <section class="split-hero">
-      <div class="hero-card">
-        <h1 class="view-title">SEU OJ</h1>
-        <p class="view-subtitle">A compact online judge focused on the shortest path from reading a problem to getting a verdict.</p>
-        <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
-          <a class="primary-button" href="#/problems">Browse Problems</a>
-          <a class="ghost-button" href="#/submissions">My Submissions</a>
-          ${latestSubmission ? `<button class="ghost-button" id="continue-last-work-btn">Continue Last Work</button>` : ""}
-          ${state.user?.role === "admin" ? `<a class="ghost-button" href="#/admin/problems">Manage Problems</a>` : ""}
+    <section class="dashboard-hero">
+      <div>
+        <div class="pill-row">
+          <span class="status-pill ${isAdmin ? "status-accepted" : isTeacher ? "status-pending" : "status-neutral"}">${escapeHTML(getHomeRoleLabel(userRole))}</span>
+          <span class="status-pill ${state.token ? "status-accepted" : "status-neutral"}">${state.token ? "Signed in" : "Guest"}</span>
         </div>
+        <h1 class="dashboard-title">${escapeHTML(getHomeGreeting())}</h1>
+        <p class="view-subtitle">${escapeHTML(getHomeRoleHint(userRole))}</p>
       </div>
-      <div class="hero-card">
-        <h3>Account Snapshot</h3>
-        <div class="metric-list">
-          <div class="metric"><span class="metric-label">User</span><span class="metric-value">${escapeHTML(state.user?.username || "guest")}</span></div>
-          <div class="metric"><span class="metric-label">Role</span><span class="metric-value">${escapeHTML(state.user?.role || "guest")}</span></div>
-          <div class="metric"><span class="metric-label">Problems</span><span class="metric-value">${totalProblems}</span></div>
-          <div class="metric"><span class="metric-label">Recent Submissions</span><span class="metric-value">${latestSubmissions.length}</span></div>
-          <div class="metric"><span class="metric-label">Token</span><span class="metric-value mono">${state.token ? "loaded" : "missing"}</span></div>
-          <div class="metric"><span class="metric-label">API Base</span><span class="metric-value mono">${escapeHTML(state.apiBase)}</span></div>
-        </div>
+      <div class="dashboard-hero-action">
+        <span class="metric-label">Next best action</span>
+        <a class="primary-button" href="${primaryAction.href}" ${primaryAction.id ? `id="${primaryAction.id}"` : ""}>${escapeHTML(primaryAction.label)}</a>
+        <p class="view-subtitle">${escapeHTML(primaryAction.hint)}</p>
       </div>
     </section>
-    <section class="detail-card" style="margin-top:18px;">
-      <div class="verdict-summary-grid">
-        <div class="verdict-summary-card"><span class="status-pill status-neutral">Problems</span><strong>${overviewStats?.problems_total ?? totalProblems}</strong></div>
-        <div class="verdict-summary-card"><span class="status-pill status-accepted">Accepted Submissions</span><strong>${overviewStats?.accepted_submissions ?? 0}</strong></div>
-        <div class="verdict-summary-card"><span class="status-pill status-neutral">Users</span><strong>${overviewStats?.users_total ?? 0}</strong></div>
-        <div class="verdict-summary-card"><span class="status-pill status-pending">My Solved</span><strong>${myStats?.accepted_problems ?? 0}</strong></div>
-        ${adminStats ? `<div class="verdict-summary-card"><span class="status-pill status-pending">Queue</span><strong>${adminStats.queue_length}</strong></div>` : ""}
-        ${adminStats ? `<div class="verdict-summary-card"><span class="status-pill status-error">System Errors</span><strong>${adminStats.system_errors}</strong></div>` : ""}
-        <div class="verdict-summary-card"><span class="status-pill status-neutral">Contests</span><strong>${contests.length}</strong></div>
-      </div>
-    </section>
-    <section class="detail-card" style="margin-top:18px;">
+
+    <section class="dashboard-section">
       <div class="view-header">
         <div>
-          <h3>Contest Snapshot</h3>
-          <p class="view-subtitle">Recent public contests and their current phase.</p>
+          <h3>Quick Actions</h3>
+          <p class="view-subtitle">Role-focused entry points for the work you are most likely to do now.</p>
         </div>
-        <a class="ghost-button" href="#/contests">All Contests</a>
       </div>
-      ${renderContestStatusBreakdown(contests)}
-      <div style="margin-top:16px;">${renderContestDeck(contests.slice(0, 3))}</div>
+      <div class="dashboard-action-grid">
+        ${quickActions.map((item) => `
+          <a class="dashboard-action-card ${item.primary ? "primary" : ""}" href="${item.href}">
+            <span class="dashboard-action-label">${escapeHTML(item.label)}</span>
+            <strong>${escapeHTML(item.title)}</strong>
+            <span class="view-subtitle">${escapeHTML(item.hint)}</span>
+          </a>
+        `).join("")}
+      </div>
     </section>
-    <section class="detail-grid" style="margin-top:18px;">
-      <article class="detail-card">
+
+    <section class="dashboard-main-grid">
+      <article class="detail-card dashboard-focus-card">
         <div class="view-header">
           <div>
-            <h3>Latest Problems</h3>
-            <p class="view-subtitle">Recently published visible problems.</p>
+            <h3>Continue Work</h3>
+            <p class="view-subtitle">Latest verdict, failure reason, and resume action in one place.</p>
           </div>
-          <a class="ghost-button" href="#/problems">All Problems</a>
+          ${latestSubmission ? `<a class="ghost-button" href="#/submissions/${latestSubmission.id}">Open Detail</a>` : ""}
         </div>
-        ${latestProblems.length ? `
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Time</th>
-                <th>Memory</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${latestProblems.map((item) => `
-                <tr>
-                  <td>${item.id}</td>
-                  <td><a class="table-link" href="#/problems/${item.id}">${escapeHTML(item.title)}</a></td>
-                  <td>${item.time_limit_ms} ms</td>
-                  <td>${item.memory_limit_mb} MB</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        ` : `<p>No problem data available.</p>`}
+        ${renderHomeContinueWork(latestSubmission, latestSubmissionDetail, latestAcceptedSubmission)}
       </article>
-      <aside class="detail-card">
+      <aside class="detail-card dashboard-activity-card">
         <div class="view-header">
           <div>
-            <h3>Recent Submissions</h3>
-            <p class="view-subtitle">Visible after login.</p>
+            <h3>Recent Activity</h3>
+            <p class="view-subtitle">Recent submissions are summarized here instead of repeated across cards.</p>
           </div>
           <a class="ghost-button" href="#/submissions">All Submissions</a>
         </div>
-        ${state.token ? (
-          latestSubmissions.length ? `
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Status</th>
-                  <th>Passed</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${latestSubmissions.map((item) => `
-                  <tr>
-                    <td><a class="table-link" href="#/submissions/${item.id}">${item.id}</a></td>
-                    <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
-                    <td>${item.passed_count}/${item.total_count}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          ` : `<p>No submission yet.</p>`
-        ) : `<p>Please login to view your recent submissions.</p>`}
+        ${renderHomeActivityList(latestSubmissions)}
       </aside>
     </section>
-    ${latestSubmission ? `
-      <section class="detail-card" style="margin-top:18px;">
+
+    <section class="dashboard-secondary-grid">
+      <article class="detail-card">
         <div class="view-header">
           <div>
-            <h3>Latest Submission Focus</h3>
-            <p class="view-subtitle">A quick summary of your most recent judge result.</p>
+            <h3>${showTeachingSnapshot ? "Teaching Snapshot" : "Problem Snapshot"}</h3>
+            <p class="view-subtitle">${showTeachingSnapshot ? "Teaching shortcuts stay visible without overwhelming student workflow." : "A compact way back into the problem set."}</p>
           </div>
-          <a class="ghost-button" href="#/submissions/${latestSubmission.id}">Open Detail</a>
+          <a class="ghost-button" href="${showTeachingSnapshot ? "#/teacher/classes" : "#/problems"}">${showTeachingSnapshot ? "Teacher Console" : "All Problems"}</a>
         </div>
-        <div class="verdict-banner ${getVerdictTone(latestSubmission.status)}">
-          <div>
-            <h2 class="verdict-title">${escapeHTML(latestSubmission.status)}</h2>
-            <p class="verdict-subtitle">Submission #${latestSubmission.id} for problem ${latestSubmission.problem_id}</p>
-            ${renderLatestFailureSummary(latestSubmission, latestSubmissionDetail)}
-          </div>
-          <div class="verdict-stats">
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Passed</span>
-              <span class="verdict-stat-value">${latestSubmission.passed_count}/${latestSubmission.total_count}</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Runtime</span>
-              <span class="verdict-stat-value">${latestSubmission.runtime_ms ?? "-"} ms</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Created</span>
-              <span class="verdict-stat-value mono">${escapeHTML(latestSubmission.created_at)}</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Action</span>
-              <span class="verdict-stat-value">
-                ${renderHomeActionForLatestSubmission(latestSubmission)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-    ` : ""}
-    ${latestAcceptedSubmission ? `
-      <section class="detail-card" style="margin-top:18px;">
+        ${showTeachingSnapshot ? renderHomeTeachingSnapshot() : renderHomeProblemList(latestProblems)}
+      </article>
+      <article class="detail-card">
         <div class="view-header">
           <div>
-            <h3>Latest Accepted Problem</h3>
-            <p class="view-subtitle">Your most recent successful submission.</p>
+            <h3>Contest Snapshot</h3>
+            <p class="view-subtitle">Only the nearest contest context is promoted here.</p>
           </div>
-          <a class="ghost-button" href="#/submissions/${latestAcceptedSubmission.id}">Open Accepted Submission</a>
+          <a class="ghost-button" href="#/contests">All Contests</a>
         </div>
-        <div class="verdict-banner accepted">
-          <div>
-            <h2 class="verdict-title">Accepted</h2>
-            <p class="verdict-subtitle">Problem ${latestAcceptedSubmission.problem_id} / Submission #${latestAcceptedSubmission.id}</p>
-          </div>
-          <div class="verdict-stats">
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Problem</span>
-              <span class="verdict-stat-value">${escapeHTML(state.problemTitleMap[latestAcceptedSubmission.problem_id] || `#${latestAcceptedSubmission.problem_id}`)}</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Passed</span>
-              <span class="verdict-stat-value">${latestAcceptedSubmission.passed_count}/${latestAcceptedSubmission.total_count}</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Runtime</span>
-              <span class="verdict-stat-value">${latestAcceptedSubmission.runtime_ms ?? "-"} ms</span>
-            </div>
-            <div class="verdict-stat">
-              <span class="verdict-stat-label">Continue</span>
-              <span class="verdict-stat-value">
-                <button class="ghost-button" id="open-accepted-problem-btn" type="button">Open Problem</button>
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-    ` : ""}
-    ${state.token ? `
-      <section class="detail-card" style="margin-top:18px;">
+        ${renderHomeContestSnapshot(nextContest, contests)}
+      </article>
+    </section>
+
+    <section class="dashboard-bottom-grid">
+      <article class="detail-card dashboard-muted-card">
         <div class="view-header">
           <div>
-            <h3>Personal Snapshot</h3>
-            <p class="view-subtitle">A quick comparison between your latest overall result and latest accepted result.</p>
+            <h3>System Snapshot</h3>
+            <p class="view-subtitle">Secondary numbers stay below the main workflow.</p>
           </div>
         </div>
         <div class="verdict-summary-grid">
-          <div class="verdict-summary-card">
-            <span class="status-pill ${latestSubmission ? statusClass(latestSubmission.status) : "status-neutral"}">Latest</span>
-            <strong>${escapeHTML(latestSubmission?.status || "N/A")}</strong>
-            <div class="view-subtitle">Submission ${latestSubmission ? `#${latestSubmission.id}` : "not found"}</div>
+          <div class="verdict-summary-card"><span class="status-pill status-neutral">Problems</span><strong>${overviewStats?.problems_total ?? totalProblems}</strong></div>
+          <div class="verdict-summary-card"><span class="status-pill status-accepted">Accepted</span><strong>${overviewStats?.accepted_submissions ?? 0}</strong></div>
+          <div class="verdict-summary-card"><span class="status-pill status-neutral">Users</span><strong>${overviewStats?.users_total ?? 0}</strong></div>
+          ${state.token ? `<div class="verdict-summary-card"><span class="status-pill status-pending">My Solved</span><strong>${myStats?.accepted_problems ?? 0}</strong></div>` : ""}
+          ${adminStats ? `<div class="verdict-summary-card"><span class="status-pill status-pending">Queue</span><strong>${adminStats.queue_length}</strong></div>` : ""}
+          ${adminStats ? `<div class="verdict-summary-card"><span class="status-pill status-error">System Errors</span><strong>${adminStats.system_errors}</strong></div>` : ""}
+        </div>
+      </article>
+      <article class="detail-card dashboard-muted-card">
+        <div class="view-header">
+          <div>
+            <h3>Updates</h3>
+            <p class="view-subtitle">Announcements and forum are kept as lightweight pointers.</p>
           </div>
-          <div class="verdict-summary-card">
-            <span class="status-pill ${latestAcceptedSubmission ? "status-accepted" : "status-neutral"}">Latest Accepted</span>
-            <strong>${latestAcceptedSubmission ? `#${latestAcceptedSubmission.id}` : "N/A"}</strong>
-            <div class="view-subtitle">${latestAcceptedSubmission ? `Problem ${latestAcceptedSubmission.problem_id}` : "No accepted submission yet"}</div>
-          </div>
-          <div class="verdict-summary-card">
-            <span class="status-pill status-neutral">Pending / Running</span>
-            <strong>${latestSubmissions.filter((item) => isSubmissionPollingStatus(item.status)).length}</strong>
-            <div class="view-subtitle">Within recent submissions</div>
-          </div>
-          <div class="verdict-summary-card">
-            <span class="status-pill status-neutral">Accepted Rate</span>
-            <strong>${latestSubmissions.length ? Math.round((latestSubmissions.filter((item) => item.status === "Accepted").length / latestSubmissions.length) * 100) : 0}%</strong>
-            <div class="view-subtitle">Based on latest visible sample</div>
+          <div class="pill-row">
+            <a class="ghost-button" href="#/announcements">Announcements</a>
+            <a class="ghost-button" href="#/forum">Forum</a>
           </div>
         </div>
-      </section>
-    ` : ""}
-    <section class="detail-card" style="margin-top:18px;">
-      <div class="view-header">
-        <div>
-          <h3>Workflow</h3>
-          <p class="view-subtitle">Recommended order for using the current system.</p>
-        </div>
-      </div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Step</th>
-            <th>Route</th>
-            <th>Purpose</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>1</td>
-            <td class="mono">#/auth</td>
-            <td>Register or login, load JWT into local storage.</td>
-          </tr>
-          <tr>
-            <td>2</td>
-            <td class="mono">#/problems</td>
-            <td>Browse problem list and open detail pages.</td>
-          </tr>
-          <tr>
-            <td>3</td>
-            <td class="mono">#/submissions</td>
-            <td>Track verdict updates and inspect details.</td>
-          </tr>
-          <tr>
-            <td>4</td>
-            <td class="mono">#/admin/problems</td>
-            <td>Admin-only creation and maintenance flow.</td>
-          </tr>
-        </tbody>
-      </table>
+        ${renderHomeUpdates(announcements, forumTopics)}
+      </article>
     </section>
   `;
 
   if (latestSubmission) {
-    const continueBtn = document.getElementById("continue-last-work-btn");
+    const continueBtn = document.getElementById("continue-last-work-btn") || document.getElementById("hero-continue-work-btn");
     if (continueBtn) {
-      continueBtn.addEventListener("click", () => {
+      continueBtn.addEventListener("click", (event) => {
+        event.preventDefault();
         handleContinueLatestSubmission(latestSubmission);
       });
     }
@@ -733,6 +607,208 @@ async function renderHome() {
       });
     }
   }
+}
+
+function getHomeGreeting() {
+  if (!state.user) {
+    return "Welcome to SEU OJ";
+  }
+  return `Welcome back, ${state.user.username}`;
+}
+
+function getHomeRoleLabel(role) {
+  if (role === "admin") return "Administrator";
+  if (role === "teacher") return "Teacher";
+  if (state.token) return "Student";
+  return "Guest";
+}
+
+function getHomeRoleHint(role) {
+  if (role === "admin") {
+    return "Manage the judging system, contest operations, problem set, submissions, and announcements from one portal.";
+  }
+  if (role === "teacher") {
+    return "Jump into classes, assignments, playlists, and the student-facing practice workflow.";
+  }
+  if (state.token) {
+    return "Continue solving, check recent verdicts, and move quickly into problems, contests, and homework.";
+  }
+  return "Browse public problems and contests, then sign in when you are ready to submit and track progress.";
+}
+
+function getHomePrimaryAction(latestSubmission) {
+  if (!state.token) {
+    return { label: "Login or Register", href: "#/auth", hint: "Sign in to submit code and see your recent activity." };
+  }
+  if (latestSubmission) {
+    return { label: isSubmissionPollingStatus(latestSubmission.status) ? "Track Latest Verdict" : "Continue Last Work", href: "#/submissions", id: "hero-continue-work-btn", hint: `Submission #${latestSubmission.id} is your freshest context.` };
+  }
+  if (state.user?.role === "admin") {
+    return { label: "Manage Problems", href: "#/admin/problems", hint: "Start from the highest-impact admin workspace." };
+  }
+  if (state.user?.role === "teacher") {
+    return { label: "Open Classes", href: "#/teacher/classes", hint: "Review class activity and publish assignments." };
+  }
+  return { label: "Browse Problems", href: "#/problems", hint: "Pick a problem and get to a verdict." };
+}
+
+function getHomeQuickActions(role, latestSubmission) {
+  if (!state.token) {
+    return [
+      { label: "Account", title: "Login or Register", hint: "Unlock submissions and personal history.", href: "#/auth", primary: true },
+      { label: "Practice", title: "Browse Problems", hint: "Explore visible problems before signing in.", href: "#/problems" },
+      { label: "Events", title: "View Contests", hint: "Check public contest schedules.", href: "#/contests" },
+    ];
+  }
+
+  if (role === "admin") {
+    return [
+      { label: "Admin", title: "Manage Problems", hint: "Create, edit, and review problem inventory.", href: "#/admin/problems", primary: true },
+      { label: "Ops", title: "Manage Contests", hint: "Maintain contest windows and problem sets.", href: "#/admin/contests" },
+      { label: "Judge", title: "Review Submissions", hint: "Inspect queue and recent judging output.", href: "#/admin/submissions" },
+      { label: "Comms", title: "Announcements", hint: "Publish system-facing updates.", href: "#/admin/announcements" },
+    ];
+  }
+
+  if (role === "teacher") {
+    return [
+      { label: "Teaching", title: "Classes", hint: "Open class rosters and assignment progress.", href: "#/teacher/classes", primary: true },
+      { label: "Content", title: "Playlists", hint: "Curate practice sets and homework sources.", href: "#/teacher/playlists" },
+      { label: "Practice", title: "Problem Set", hint: "Use student-facing practice flow.", href: "#/problems" },
+      { label: "Verdicts", title: "My Submissions", hint: "Review your latest judge results.", href: "#/submissions" },
+    ];
+  }
+
+  return [
+    { label: "Practice", title: latestSubmission ? "Continue Work" : "Browse Problems", hint: latestSubmission ? "Return to your most recent submission context." : "Find the next problem to solve.", href: latestSubmission ? "#/submissions" : "#/problems", primary: true },
+    { label: "Verdicts", title: "My Submissions", hint: "Check judge feedback and reuse code.", href: "#/submissions" },
+    { label: "Events", title: "Contests", hint: "Join or practice contest problem sets.", href: "#/contests" },
+    { label: "Learning", title: "Classes", hint: "Open assigned playlists and homework.", href: "#/classes" },
+  ];
+}
+
+function renderHomeContinueWork(latestSubmission, latestSubmissionDetail, latestAcceptedSubmission) {
+  if (!state.token) {
+    return `<p class="view-subtitle">Login to see your latest verdict, failure reason, accepted record, and resume action.</p>`;
+  }
+  if (!latestSubmission) {
+    return `
+      <div class="dashboard-empty-state">
+        <strong>No submission yet</strong>
+        <p class="view-subtitle">Start from the problem set, then this area will become your resume point.</p>
+        <a class="primary-button" href="#/problems">Browse Problems</a>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="verdict-banner ${getVerdictTone(latestSubmission.status)} dashboard-verdict">
+      <div>
+        <h2 class="verdict-title">${escapeHTML(latestSubmission.status)}</h2>
+        <p class="verdict-subtitle">Problem ${latestSubmission.problem_id} / Submission #${latestSubmission.id}</p>
+        ${renderLatestFailureSummary(latestSubmission, latestSubmissionDetail)}
+      </div>
+      <div class="verdict-stats">
+        <div class="verdict-stat"><span class="verdict-stat-label">Passed</span><span class="verdict-stat-value">${latestSubmission.passed_count}/${latestSubmission.total_count}</span></div>
+        <div class="verdict-stat"><span class="verdict-stat-label">Runtime</span><span class="verdict-stat-value">${latestSubmission.runtime_ms ?? "-"} ms</span></div>
+        <div class="verdict-stat"><span class="verdict-stat-label">Created</span><span class="verdict-stat-value mono">${escapeHTML(latestSubmission.created_at)}</span></div>
+        <div class="verdict-stat"><span class="verdict-stat-label">Action</span><span class="verdict-stat-value">${renderHomeActionForLatestSubmission(latestSubmission)}</span></div>
+      </div>
+    </div>
+    ${latestAcceptedSubmission ? `
+      <div class="dashboard-accepted-strip">
+        <span class="status-pill status-accepted">Latest Accepted</span>
+        <span>Problem ${latestAcceptedSubmission.problem_id} / Submission #${latestAcceptedSubmission.id}</span>
+        <button class="ghost-button" id="open-accepted-problem-btn" type="button">Open Problem</button>
+      </div>
+    ` : ""}
+  `;
+}
+
+function renderHomeActivityList(list) {
+  if (!state.token) {
+    return `<p class="view-subtitle">Please login to view recent submissions.</p>`;
+  }
+  if (!list.length) {
+    return `<p class="view-subtitle">No submission yet.</p>`;
+  }
+  return `
+    <div class="dashboard-activity-list">
+      ${list.map((item) => `
+        <a class="dashboard-activity-row" href="#/submissions/${item.id}">
+          <span class="mono">#${item.id}</span>
+          <span>Problem ${item.problem_id}</span>
+          <span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span>
+          <span class="mono">${item.passed_count}/${item.total_count}</span>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderHomeProblemList(problems) {
+  if (!problems.length) {
+    return `<p class="view-subtitle">No problem data available.</p>`;
+  }
+  return `
+    <div class="dashboard-list">
+      ${problems.slice(0, 4).map((item) => `
+        <a class="dashboard-list-row" href="#/problems/${item.id}">
+          <span class="mono">#${item.id}</span>
+          <strong>${escapeHTML(item.title)}</strong>
+          <span class="view-subtitle">${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</span>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderHomeTeachingSnapshot() {
+  return `
+    <div class="dashboard-action-grid compact">
+      <a class="dashboard-action-card" href="#/teacher/classes"><span class="dashboard-action-label">Classes</span><strong>Manage Classes</strong><span class="view-subtitle">Rosters, assignments, and analytics.</span></a>
+      <a class="dashboard-action-card" href="#/teacher/playlists"><span class="dashboard-action-label">Playlists</span><strong>Build Practice Sets</strong><span class="view-subtitle">Curate reusable problem lists.</span></a>
+    </div>
+  `;
+}
+
+function renderHomeContestSnapshot(contest, contests) {
+  if (!contest) {
+    return `<p class="view-subtitle">No contest scheduled yet.</p>`;
+  }
+  const running = contests.filter((item) => item.status === "running").length;
+  const upcoming = contests.filter((item) => item.status === "upcoming").length;
+  return `
+    <div class="dashboard-contest-feature">
+      <span class="status-pill ${contestStatusClass(contest.status)}">${escapeHTML(contest.status)}</span>
+      <h4>${escapeHTML(contest.title)}</h4>
+      <p class="view-subtitle">${renderContestStatusHint(contest)}</p>
+      <div class="dashboard-mini-metrics">
+        <span>${contest.problem_count} problems</span>
+        <span>${contest.registered_count} registrations</span>
+        <span>${running} running / ${upcoming} upcoming</span>
+      </div>
+      <a class="ghost-button" href="#/contests/${contest.id}">Open Contest</a>
+    </div>
+  `;
+}
+
+function renderHomeUpdates(announcements, topics) {
+  const announcementItems = announcements.slice(0, 2).map((item) => `
+    <a class="dashboard-list-row" href="#/announcements/${item.id}">
+      <span class="status-pill ${item.is_pinned ? "status-pending" : "status-neutral"}">${item.is_pinned ? "Pinned" : "News"}</span>
+      <strong>${escapeHTML(item.title)}</strong>
+      <span class="view-subtitle mono">${escapeHTML(item.created_at)}</span>
+    </a>
+  `).join("");
+  const topicItems = topics.slice(0, 2).map((item) => `
+    <a class="dashboard-list-row" href="#/forum/topics/${item.id}">
+      <span class="status-pill status-neutral">Forum</span>
+      <strong>${escapeHTML(item.title)}</strong>
+      <span class="view-subtitle">${escapeHTML(item.content_preview || "")}</span>
+    </a>
+  `).join("");
+  return `<div class="dashboard-list">${announcementItems}${topicItems || ""}${!announcementItems && !topicItems ? `<p class="view-subtitle">No updates yet.</p>` : ""}</div>`;
 }
 
 async function renderProfile() {
@@ -869,7 +945,3 @@ async function renderProfile() {
     app.innerHTML = `<div class="detail-card"><p>Load profile failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
-
-
-
-
