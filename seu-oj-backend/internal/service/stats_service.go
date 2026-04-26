@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/dto"
 	"seu-oj-backend/internal/model"
 	"seu-oj-backend/internal/queue"
@@ -14,13 +17,18 @@ import (
 type StatsService struct {
 	db         *gorm.DB
 	judgeQueue *queue.JudgeQueue
+	cache      *cache.Cache
 }
 
-func NewStatsService(db *gorm.DB, judgeQueue *queue.JudgeQueue) *StatsService {
-	return &StatsService{db: db, judgeQueue: judgeQueue}
+func NewStatsService(db *gorm.DB, judgeQueue *queue.JudgeQueue, cacheStore *cache.Cache) *StatsService {
+	return &StatsService{db: db, judgeQueue: judgeQueue, cache: cacheStore}
 }
 
-func (s *StatsService) Overview() (*dto.OverviewStatsResponse, error) {
+func (s *StatsService) Overview(ctx context.Context) (*dto.OverviewStatsResponse, error) {
+	return cache.GetOrSet(ctx, s.cache, "cache:stats:overview", 60*time.Second, s.overview)
+}
+
+func (s *StatsService) overview() (*dto.OverviewStatsResponse, error) {
 	resp := &dto.OverviewStatsResponse{}
 	if err := s.db.Model(&model.Problem{}).Count(&resp.ProblemsTotal).Error; err != nil {
 		return nil, err
@@ -40,7 +48,14 @@ func (s *StatsService) Overview() (*dto.OverviewStatsResponse, error) {
 	return resp, nil
 }
 
-func (s *StatsService) My(userID uint64) (*dto.UserStatsResponse, error) {
+func (s *StatsService) My(ctx context.Context, userID uint64) (*dto.UserStatsResponse, error) {
+	key := fmt.Sprintf("cache:stats:my:%d", userID)
+	return cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.UserStatsResponse, error) {
+		return s.my(userID)
+	})
+}
+
+func (s *StatsService) my(userID uint64) (*dto.UserStatsResponse, error) {
 	var user model.User
 	if err := s.db.First(&user, userID).Error; err != nil {
 		return nil, err
@@ -50,28 +65,35 @@ func (s *StatsService) My(userID uint64) (*dto.UserStatsResponse, error) {
 		UserID:   user.ID,
 		Username: user.Username,
 	}
-	if err := s.db.Model(&model.Submission{}).Where("user_id = ?", userID).Count(&resp.SubmissionsTotal).Error; err != nil {
-		return nil, err
-	}
-	if err := s.db.Model(&model.Submission{}).Where("user_id = ? AND status = ?", userID, "Accepted").Count(&resp.AcceptedSubmissions).Error; err != nil {
-		return nil, err
-	}
-	if err := s.db.Model(&model.Submission{}).Where("user_id = ? AND status = ?", userID, "Pending").Count(&resp.PendingSubmissions).Error; err != nil {
-		return nil, err
-	}
-	if err := s.db.Model(&model.Submission{}).Where("user_id = ? AND status = ?", userID, "Running").Count(&resp.RunningSubmissions).Error; err != nil {
-		return nil, err
-	}
-	if err := s.db.Model(&model.Submission{}).Distinct("problem_id").Where("user_id = ? AND status = ?", userID, "Accepted").Count(&resp.AcceptedProblems).Error; err != nil {
-		return nil, err
-	}
 
-	var avg sql.NullFloat64
-	if err := s.db.Model(&model.Submission{}).Where("user_id = ? AND runtime_ms IS NOT NULL", userID).Select("AVG(runtime_ms)").Scan(&avg).Error; err != nil {
+	var summary struct {
+		SubmissionsTotal    int64           `gorm:"column:submissions_total"`
+		AcceptedSubmissions int64           `gorm:"column:accepted_submissions"`
+		PendingSubmissions  int64           `gorm:"column:pending_submissions"`
+		RunningSubmissions  int64           `gorm:"column:running_submissions"`
+		AcceptedProblems    int64           `gorm:"column:accepted_problems"`
+		AverageRuntimeMS    sql.NullFloat64 `gorm:"column:average_runtime_ms"`
+	}
+	if err := s.db.Model(&model.Submission{}).
+		Select(`
+			COUNT(*) AS submissions_total,
+			COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS accepted_submissions,
+			COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS pending_submissions,
+			COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) AS running_submissions,
+			COUNT(DISTINCT CASE WHEN status = ? THEN problem_id END) AS accepted_problems,
+			AVG(runtime_ms) AS average_runtime_ms
+		`, "Accepted", "Pending", "Running", "Accepted").
+		Where("user_id = ?", userID).
+		Scan(&summary).Error; err != nil {
 		return nil, err
 	}
-	if avg.Valid {
-		resp.AverageRuntimeMS = &avg.Float64
+	resp.SubmissionsTotal = summary.SubmissionsTotal
+	resp.AcceptedSubmissions = summary.AcceptedSubmissions
+	resp.PendingSubmissions = summary.PendingSubmissions
+	resp.RunningSubmissions = summary.RunningSubmissions
+	resp.AcceptedProblems = summary.AcceptedProblems
+	if summary.AverageRuntimeMS.Valid {
+		resp.AverageRuntimeMS = &summary.AverageRuntimeMS.Float64
 	}
 
 	var statusRows []dto.CountItem

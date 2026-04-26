@@ -1,4 +1,4 @@
-﻿package database
+package database
 
 import (
 	"gorm.io/driver/mysql"
@@ -40,11 +40,6 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 			return nil, err
 		}
 	}
-	if !db.Migrator().HasIndex(&model.Submission{}, "idx_submissions_contest_id") {
-		if err := db.Migrator().CreateIndex(&model.Submission{}, "ContestID"); err != nil {
-			return nil, err
-		}
-	}
 	if !db.Migrator().HasColumn(&model.ForumTopic{}, "is_pinned") {
 		if err := db.Exec("ALTER TABLE forum_topics ADD COLUMN is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER reply_count").Error; err != nil {
 			return nil, err
@@ -57,4 +52,3 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	}
 	return db, nil
 }
-

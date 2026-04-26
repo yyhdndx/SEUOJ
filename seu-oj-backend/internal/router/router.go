@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"seu-oj-backend/internal/api"
+	"seu-oj-backend/internal/cache"
 	"seu-oj-backend/internal/config"
 	"seu-oj-backend/internal/middleware"
 	"seu-oj-backend/internal/queue"
@@ -21,22 +22,24 @@ import (
 func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine {
 	engine := gin.Default()
 	engine.Use(middleware.CORS())
+	engine.Use(middleware.Timing())
+	cacheStore := cache.New(redisClient)
 
 	authService := service.NewAuthService(db, cfg.Auth.JWTSecret)
 	authHandler := api.NewAuthHandler(authService)
 	userService := service.NewUserService(db)
 	userHandler := api.NewUserHandler(userService)
-	announcementService := service.NewAnnouncementService(db)
+	announcementService := service.NewAnnouncementService(db, cacheStore)
 	announcementHandler := api.NewAnnouncementHandler(announcementService)
-	ranklistService := service.NewRanklistService(db)
+	ranklistService := service.NewRanklistService(db, cacheStore)
 	ranklistHandler := api.NewRanklistHandler(ranklistService)
-	forumService := service.NewForumService(db)
+	forumService := service.NewForumService(db, cacheStore)
 	forumHandler := api.NewForumHandler(forumService)
 	problemRepo := repository.NewProblemRepository(db)
 	problemTestcaseRepo := repository.NewProblemTestcaseRepository(db)
-	problemService := service.NewProblemService(db, problemRepo, problemTestcaseRepo)
+	problemService := service.NewProblemService(db, problemRepo, problemTestcaseRepo, cacheStore)
 	problemHandler := api.NewProblemHandler(problemService)
-	contestService := service.NewContestService(db, problemRepo, problemTestcaseRepo)
+	contestService := service.NewContestService(db, problemRepo, problemTestcaseRepo, cacheStore)
 	contestHandler := api.NewContestHandler(contestService)
 	submissionRepo := repository.NewSubmissionRepository(db)
 	submissionResultRepo := repository.NewSubmissionResultRepository(db)
@@ -57,9 +60,9 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 		CompileTimeoutSec:  cfg.Sandbox.CompileTimeoutSec,
 		RunTimeoutBufferMS: cfg.Sandbox.RunTimeoutBufferMS,
 	})
-	submissionService := service.NewSubmissionService(db, submissionRepo, submissionResultRepo, problemRepo, problemTestcaseRepo, judgeQueue, sandboxRunner, contestService)
+	submissionService := service.NewSubmissionService(db, submissionRepo, submissionResultRepo, problemRepo, problemTestcaseRepo, judgeQueue, sandboxRunner, contestService, cacheStore)
 	submissionHandler := api.NewSubmissionHandler(submissionService)
-	statsService := service.NewStatsService(db, judgeQueue)
+	statsService := service.NewStatsService(db, judgeQueue, cacheStore)
 	statsHandler := api.NewStatsHandler(statsService)
 	teachingService := service.NewTeachingService(db)
 	teachingHandler := api.NewTeachingHandler(teachingService)
@@ -245,6 +248,7 @@ func registerStaticRoutes(engine *gin.Engine) {
 	stylesPath := filepath.Join(frontendDir, "styles.css")
 	jsDir := filepath.Join(frontendDir, "js")
 	cssDir := filepath.Join(frontendDir, "css")
+	codeMirrorDir := filepath.Join(frontendDir, "CodeMirror")
 
 	if _, err := os.Stat(indexPath); err != nil {
 		return
@@ -255,6 +259,9 @@ func registerStaticRoutes(engine *gin.Engine) {
 	}
 	if _, err := os.Stat(cssDir); err == nil {
 		engine.StaticFS("/css", gin.Dir(cssDir, false))
+	}
+	if _, err := os.Stat(codeMirrorDir); err == nil {
+		engine.StaticFS("/CodeMirror", gin.Dir(codeMirrorDir, false))
 	}
 
 	engine.GET("/", func(c *gin.Context) {

@@ -327,6 +327,12 @@ body.problem-fullscreen .content {
   overflow: hidden;
 }
 
+body.auth-page .content {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
 .hidden {
   display: none !important;
 }
