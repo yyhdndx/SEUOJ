@@ -25,86 +25,85 @@ async function renderProblemSolutionManager(problemID) {
     const ownSolution = list.find((item) => Number(item.author_id) === Number(state.user?.id));
     const canCreate = !ownSolution;
     app.innerHTML = `
-      <div class="view-header solution-manager-header">
-        <div>
-          <h1 class="view-title">My Solutions</h1>
-          <p class="view-subtitle">${escapeHTML(problem.title)} / #${problem.id}</p>
-        </div>
-        <div class="solution-manager-actions">
+      <div class="solution-manager-page">
+        <header class="solution-manager-bar">
+          <div>
+            <h1>My Solution</h1>
+            <p>${escapeHTML(problem.title)} / #${problem.id}</p>
+          </div>
           <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
-          ${state.user?.role === "admin" ? `<a class="ghost-button" href="#/admin/problems/${problem.id}">Admin View</a>` : ""}
-        </div>
-      </div>
-      <section class="solution-manager-layout">
-        <section class="detail-card solution-manager-section">
-          <div class="solution-section-heading">
-            <h3>Create</h3>
-            ${ownSolution ? '<span class="status-pill status-neutral">Already created</span>' : ""}
-          </div>
-          ${canCreate ? `
-            <form id="problem-solution-form" class="solution-form">
-              <label class="field-label">Title</label>
-              <input class="text-input" name="title" required />
-              <label class="field-label">Visibility</label>
-              <select class="select-input" name="visibility">
-                <option value="public">public</option>
-                <option value="private">private</option>
-              </select>
-              <label class="field-label">Content</label>
-              <div class="solution-markdown-editor">
-                <div class="solution-preview-tabs" role="tablist" aria-label="Create solution content mode">
-                  <button class="solution-preview-tab is-active" type="button" data-preview-mode="edit" data-preview-group="create">Edit</button>
-                  <button class="solution-preview-tab" type="button" data-preview-mode="preview" data-preview-group="create">Preview</button>
-                </div>
-                <textarea class="text-area solution-markdown-source" name="content" rows="18" required data-preview-source="create"></textarea>
-                <div class="solution-markdown-preview hidden" data-preview-target="create">${renderSolutionPreview("")}</div>
-              </div>
-              <div class="view-subtitle">Markdown is supported. Non-admin users need an Accepted submission on this problem before publishing.</div>
-              <div class="solution-form-actions"><button class="primary-button" type="submit">Create Solution</button></div>
-            </form>
-          ` : `
-            <div class="solution-empty">
-              You already have a solution for this problem. Edit it in the section on the right.
+        </header>
+        <section class="solution-manager-layout">
+          <section class="detail-card solution-manager-section solution-existing-section">
+            <div class="solution-section-heading">
+              <h3>Create</h3>
+              ${ownSolution ? '<span class="status-pill status-neutral">Already created</span>' : ""}
             </div>
-          `}
-        </section>
-        <section class="detail-card solution-manager-section">
-          <div class="solution-section-heading">
-            <h3>Your Solution</h3>
-            ${canManageAll ? '<span class="view-subtitle">Admin view shows all authors.</span>' : ""}
-          </div>
-          ${list.length ? `
-            <div class="solution-stack">
-              ${list.map((item) => `
-                <article class="solution-card">
-                  <div class="view-header compact">
-                    <div>
-                      <h4 class="solution-title">${escapeHTML(item.title)}</h4>
-                      <p class="view-subtitle">Author #${item.author_id} / updated ${escapeHTML(item.updated_at)}</p>
-                    </div>
-                    <span class="status-pill ${solutionVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
+            ${canCreate ? `
+              <form id="problem-solution-form" class="solution-form">
+                <label class="field-label">Title</label>
+                <input class="text-input" name="title" required />
+                <label class="field-label">Visibility</label>
+                <select class="select-input" name="visibility">
+                  <option value="public">public</option>
+                  <option value="private">private</option>
+                </select>
+                <label class="field-label">Content</label>
+                <div class="solution-markdown-editor">
+                  <div class="solution-preview-tabs" role="tablist" aria-label="Create solution content mode">
+                    <button class="solution-preview-tab is-active" type="button" data-preview-mode="edit" data-preview-group="create">Edit</button>
+                    <button class="solution-preview-tab" type="button" data-preview-mode="preview" data-preview-group="create">Preview</button>
                   </div>
-                  <form class="solution-edit-form" data-solution-id="${item.id}">
-                    <label class="field-label">Title</label>
-                    <input class="text-input" name="title" value="${escapeHTML(item.title)}" required />
-                    <label class="field-label">Visibility</label>
-                    <select class="select-input" name="visibility">
-                      <option value="public" ${item.visibility === "public" ? "selected" : ""}>public</option>
-                      <option value="private" ${item.visibility === "private" ? "selected" : ""}>private</option>
-                    </select>
-                    <label class="field-label">Content</label>
-                    <textarea class="text-area" name="content" rows="10" required>${escapeHTML(item.content || "")}</textarea>
-                    <div class="solution-form-actions">
-                      <button class="ghost-button" type="submit">Save</button>
-                      <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
-                    </div>
-                  </form>
-                </article>
-              `).join("")}
+                  <textarea class="text-area solution-markdown-source" name="content" rows="18" required data-preview-source="create"></textarea>
+                  <div class="solution-markdown-preview hidden" data-preview-target="create">${renderSolutionPreview("")}</div>
+                </div>
+                <div class="view-subtitle">Markdown is supported. Non-admin users need an Accepted submission on this problem before publishing.</div>
+                <div class="solution-form-actions"><button class="primary-button" type="submit">Create Solution</button></div>
+              </form>
+            ` : `
+              <div class="solution-empty">
+                You already have a solution for this problem. Edit it in the section on the right.
+              </div>
+            `}
+          </section>
+          <section class="detail-card solution-manager-section">
+            <div class="solution-section-heading">
+              <h3>Your Solution</h3>
+              ${canManageAll ? '<span class="view-subtitle">Admin view shows all authors.</span>' : ""}
             </div>
-          ` : renderSolutionEmpty("No solutions yet.")}
+            ${list.length ? `
+              <div class="solution-stack solution-existing-stack">
+                ${list.map((item) => `
+                  <article class="solution-card solution-existing-card">
+                    <div class="view-header compact">
+                      <div>
+                        <h4 class="solution-title">${escapeHTML(item.title)}</h4>
+                        <p class="view-subtitle">Author #${item.author_id} / updated ${escapeHTML(item.updated_at)}</p>
+                      </div>
+                      <span class="status-pill ${solutionVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
+                    </div>
+                    <form class="solution-edit-form" data-solution-id="${item.id}">
+                      <label class="field-label">Title</label>
+                      <input class="text-input" name="title" value="${escapeHTML(item.title)}" required />
+                      <label class="field-label">Visibility</label>
+                      <select class="select-input" name="visibility">
+                        <option value="public" ${item.visibility === "public" ? "selected" : ""}>public</option>
+                        <option value="private" ${item.visibility === "private" ? "selected" : ""}>private</option>
+                      </select>
+                      <label class="field-label">Content</label>
+                      <textarea class="text-area" name="content" rows="10" required>${escapeHTML(item.content || "")}</textarea>
+                      <div class="solution-form-actions">
+                        <button class="ghost-button" type="submit">Save</button>
+                        <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
+                      </div>
+                    </form>
+                  </article>
+                `).join("")}
+              </div>
+            ` : renderSolutionEmpty("No solutions yet.")}
+          </section>
         </section>
-      </section>
+      </div>
     `;
 
     setupSolutionMarkdownPreview();
