@@ -174,12 +174,20 @@ func (h *ProblemHandler) SolutionList(c *gin.Context) {
 }
 
 func (h *ProblemHandler) TeacherSolutionList(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	role, ok := getContextRole(c)
+	if !ok {
+		return
+	}
 	problemID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.Error(c, "invalid problem id")
 		return
 	}
-	items, err := h.problemService.ListProblemSolutions(problemID, true)
+	items, err := h.problemService.ListManageProblemSolutions(userID, role, problemID)
 	if err != nil {
 		if errors.Is(err, service.ErrProblemNotFound) {
 			response.Error(c, "problem not found")
@@ -214,9 +222,13 @@ func (h *ProblemHandler) CreateSolution(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrPermissionDenied):
-			response.Error(c, "teacher permission required")
+			response.Error(c, "solution access denied")
+		case errors.Is(err, service.ErrSolutionPublishNotAllowed):
+			response.Error(c, "accepted submission required before publishing a solution")
 		case errors.Is(err, service.ErrProblemNotFound):
 			response.Error(c, "problem not found")
+		case errors.Is(err, service.ErrInvalidProblemSolutionData):
+			response.Error(c, "invalid request parameters")
 		default:
 			response.Error(c, "create solution failed")
 		}
@@ -256,6 +268,8 @@ func (h *ProblemHandler) UpdateSolution(c *gin.Context) {
 			response.Error(c, "solution access denied")
 		case errors.Is(err, service.ErrSolutionNotFound):
 			response.Error(c, "solution not found")
+		case errors.Is(err, service.ErrInvalidProblemSolutionData):
+			response.Error(c, "invalid request parameters")
 		default:
 			response.Error(c, "update solution failed")
 		}

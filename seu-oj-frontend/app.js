@@ -352,6 +352,7 @@ async function renderRoute() {
   if (routePath.startsWith("/contests")) return renderContests();
   if (routePath === "/announcements") return renderAnnouncements();
   if (routePath.startsWith("/announcements/")) return renderAnnouncementDetail(routePath.split("/")[2]);
+  if (routePath.startsWith("/problems/") && routePath.endsWith("/solutions/manage")) return renderProblemSolutionManager(routePath.split("/")[2]);
   if (routePath.startsWith("/problems/")) return renderProblemDetail(routePath.split("/")[2]);
   if (routePath.startsWith("/problems")) return renderProblems();
   if (routePath === "/submissions") return renderMySubmissions();
