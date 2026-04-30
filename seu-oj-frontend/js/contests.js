@@ -681,6 +681,26 @@ async function renderAdminContestEdit(id) {
   }
 }
 
+async function loadAdminContestProblems() {
+  const pageSize = 100;
+  const firstPage = await apiFetch(`/admin/problems?page=1&page_size=${pageSize}&include_hidden=true`, { method: "GET" });
+  const firstList = firstPage.list || [];
+  const total = Math.max(Number(firstPage.total ?? 0) || 0, firstList.length);
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) {
+    return firstList;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) => {
+      const page = index + 2;
+      return apiFetch(`/admin/problems?page=${page}&page_size=${pageSize}&include_hidden=true`, { method: "GET" });
+    }),
+  );
+
+  return firstList.concat(remainingPages.flatMap((pageData) => pageData.list || []));
+}
+
 async function renderAdminContestForm(id, initial) {
   if (!state.token || state.user?.role !== "admin") {
     app.innerHTML = `<div class="detail-card"><p>Only admin can access contest editing.</p></div>`;
@@ -689,9 +709,7 @@ async function renderAdminContestForm(id, initial) {
 
   app.innerHTML = `<div class="detail-card"><p>Loading contest form...</p></div>`;
   try {
-    // Backend enforces page_size <= 100 (dto.AdminProblemListQuery), so keep it within limit.
-    const problemsData = await apiFetch("/admin/problems?page=1&page_size=100&include_hidden=true", { method: "GET" });
-    const problems = problemsData.list || [];
+    const problems = await loadAdminContestProblems();
     const initialProblems = (initial?.problems && initial.problems.length)
       ? initial.problems
       : [{ problem_id: problems[0]?.id || 0, problem_code: "A", display_order: 1 }];

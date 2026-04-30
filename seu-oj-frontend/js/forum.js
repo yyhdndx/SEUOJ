@@ -5,6 +5,9 @@
 }
 
 function forumScopeLink(scopeType, scopeID) {
+  if (scopeType === "general") return "#/forum?scope_type=general";
+  if (scopeType === "problem" && !scopeID) return "#/forum?scope_type=problem";
+  if (scopeType === "contest" && !scopeID) return "#/forum?scope_type=contest";
   if (!scopeID) return "#/forum";
   if (scopeType === "problem") return `#/problems/${scopeID}`;
   if (scopeType === "contest") return `#/contests/${scopeID}`;
@@ -50,7 +53,7 @@ function forumStatsPills(topic) {
 
 function renderForumSummaryCards(result, scopeType, scopeID) {
   const list = result?.list || [];
-  const total = Number(result?.total ?? list.length) || 0;
+  const shown = list.length;
   const pinned = list.filter((item) => item.is_pinned).length;
   const locked = list.filter((item) => item.is_locked).length;
   const active = list.filter((item) => item.reply_count > 0).length;
@@ -63,7 +66,7 @@ function renderForumSummaryCards(result, scopeType, scopeID) {
       </article>
       <article class="forum-summary-card">
         <span class="forum-summary-label">Topics</span>
-        <strong class="forum-summary-value">${total}</strong>
+        <strong class="forum-summary-value">${shown}</strong>
       </article>
       <article class="forum-summary-card">
         <span class="forum-summary-label">Pinned</span>
@@ -128,10 +131,14 @@ async function renderForum() {
     if (scopeID) params.set("scope_id", scopeID);
     const topics = await apiFetch(`/forum/topics?${params.toString()}`, { method: "GET" });
     const topicList = topics.list || [];
+    const totalTopics = Math.max(Number(topics.total ?? 0) || 0, topicList.length);
+    const topicSummary = totalTopics > topicList.length
+      ? `Showing ${topicList.length} of ${totalTopics} topics on this page.`
+      : `Showing ${topicList.length} topic${topicList.length === 1 ? "" : "s"}.`;
 
     const scopeHint = scopeType
-      ? `Current zone: ${forumScopeLabel(scopeType, scopeID || null)}`
-      : "General discussion across contests, problems, and training topics.";
+      ? `Current zone: ${forumScopeLabel(scopeType, scopeID || null)}. ${topicSummary}`
+      : `General discussion across contests, problems, and training topics. ${topicSummary}`;
 
     const tabHref = (nextScopeType) => {
       const next = new URLSearchParams();
