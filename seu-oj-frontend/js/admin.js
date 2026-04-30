@@ -26,28 +26,29 @@ async function renderProblems() {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Display</th>
             <th>Title</th>
             <th>My Status</th>
             <th>Mode</th>
             <th>Time</th>
             <th>Memory</th>
-            <th>Created</th>
+            <th>Difficulty</th>
           </tr>
         </thead>
         <tbody>
-          ${state.problems.map((item) => `
+          ${state.problems.map((item) => {
+            const difficulty = getProblemDifficulty(item);
+            return `
             <tr>
-              <td>${item.id}</td>
               <td class="mono">${escapeHTML(item.display_id || "-")}</td>
               <td><a class="table-link" href="#/problems/${item.id}">${escapeHTML(item.title)}</a></td>
               <td>${renderProblemStatusPill(myProblemStatusMap[item.id])}</td>
               <td>${escapeHTML(item.judge_mode)}</td>
               <td>${item.time_limit_ms} ms</td>
               <td>${item.memory_limit_mb} MB</td>
-              <td class="mono">${escapeHTML(item.created_at)}</td>
+              <td>${escapeHTML(difficulty.label)}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     `;
@@ -97,7 +98,7 @@ async function renderAdminProblemDetail(id) {
               </div>
               <h1 class="pane-title problem-title">${escapeHTML(problem.title)}</h1>
               <div class="problem-meta-row">
-                <span class="problem-meta-chip">${escapeHTML(difficulty.label)}</span>
+                <span class="problem-meta-chip ${difficulty.className}">${escapeHTML(difficulty.label)}</span>
                 <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
                 <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
               </div>
@@ -178,10 +179,8 @@ async function renderAdminProblemDetail(id) {
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
-      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
-      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        codeEditor.value = getDefaultCodeTemplate(nextLanguage);
-      }
+      saveSubmissionDraft(problem.id, currentLanguage, getProblemEditorValue(codeEditor));
+      setProblemEditorValue(codeEditor, readSubmissionDraftCode(problem.id, nextLanguage));
       currentLanguage = nextLanguage;
     });
     indentSizeSelect?.addEventListener("change", (event) => {
@@ -255,24 +254,21 @@ async function renderAdminProblemDetail(id) {
 }
 
 function getProblemDifficulty(problem) {
-  const rawDifficulty = [
-    problem?.difficulty,
-    problem?.difficulty_label,
-    problem?.level,
-    problem?.level_name,
-  ].find((value) => value !== undefined && value !== null && String(value).trim());
-  const normalized = String(rawDifficulty || "Unknown").trim();
-  const lower = normalized.toLowerCase();
+  const difficultyValue = Number(problem?.difficulty);
+  let label = "未知";
   let className = "status-neutral";
-  if (lower.includes("easy")) {
+  if (difficultyValue === 1) {
+    label = "简单";
     className = "status-accepted";
-  } else if (lower.includes("medium")) {
+  } else if (difficultyValue === 2) {
+    label = "中等";
     className = "status-pending";
-  } else if (lower.includes("hard")) {
+  } else if (difficultyValue === 3) {
+    label = "困难";
     className = "status-wrong";
   }
   return {
-    label: normalized,
+    label,
     className,
   };
 }
@@ -517,7 +513,7 @@ function renderProblemSolutions(solutions, problemID) {
         <div>
           <p class="view-subtitle">Editorial notes and official write-ups for this problem.</p>
         </div>
-        ${isTeacherUser() ? `<a class="ghost-button" href="#/teacher/problems/${problemID}/solutions">Manage Solutions</a>` : ""}
+        ${state.user ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage Solutions</a>` : ""}
       </div>
       ${list.length ? `
         <div class="solution-stack">

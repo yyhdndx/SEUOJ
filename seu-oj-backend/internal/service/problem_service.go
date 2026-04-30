@@ -16,9 +16,11 @@ import (
 )
 
 var (
-	ErrProblemNotFound  = errors.New("problem not found")
-	ErrPermissionDenied = errors.New("permission denied")
-	ErrSolutionNotFound = errors.New("solution not found")
+	ErrProblemNotFound            = errors.New("problem not found")
+	ErrPermissionDenied           = errors.New("permission denied")
+	ErrSolutionNotFound           = errors.New("solution not found")
+	ErrSolutionPublishNotAllowed  = errors.New("solution publish not allowed")
+	ErrInvalidProblemSolutionData = errors.New("invalid problem solution data")
 )
 
 type ProblemService struct {
@@ -58,6 +60,7 @@ func (s *ProblemService) CreateProblem(ctxUserID uint64, ctxRole string, req dto
 		Hint:          req.Hint,
 		Source:        strings.TrimSpace(req.Source),
 		JudgeMode:     req.JudgeMode,
+		Difficulty:    req.Difficulty,
 		TimeLimitMS:   req.TimeLimitMS,
 		MemoryLimitMB: req.MemoryLimitMB,
 		Visible:       req.Visible,
@@ -116,6 +119,7 @@ func (s *ProblemService) ListAdminProblems(ctxRole string, page, pageSize int, k
 			DisplayID:     problem.DisplayID,
 			Title:         problem.Title,
 			JudgeMode:     problem.JudgeMode,
+			Difficulty:    problem.Difficulty,
 			TimeLimitMS:   problem.TimeLimitMS,
 			MemoryLimitMB: problem.MemoryLimitMB,
 			Visible:       problem.Visible,
@@ -177,6 +181,7 @@ func (s *ProblemService) listProblems(page, pageSize int, keyword string) (*dto.
 			DisplayID:     problem.DisplayID,
 			Title:         problem.Title,
 			JudgeMode:     problem.JudgeMode,
+			Difficulty:    problem.Difficulty,
 			TimeLimitMS:   problem.TimeLimitMS,
 			MemoryLimitMB: problem.MemoryLimitMB,
 			Visible:       problem.Visible,
@@ -273,6 +278,7 @@ func (s *ProblemService) UpdateProblem(ctxRole string, id uint64, req dto.Create
 	problem.Hint = req.Hint
 	problem.Source = strings.TrimSpace(req.Source)
 	problem.JudgeMode = req.JudgeMode
+	problem.Difficulty = req.Difficulty
 	problem.TimeLimitMS = req.TimeLimitMS
 	problem.MemoryLimitMB = req.MemoryLimitMB
 	problem.Visible = req.Visible
@@ -327,11 +333,15 @@ func (s *ProblemService) DeleteProblem(ctxRole string, id uint64) error {
 }
 
 func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate bool) ([]dto.ProblemSolutionResponse, error) {
-	if _, err := s.problemRepo.GetByID(problemID); err != nil {
+	problem, err := s.problemRepo.GetByID(problemID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProblemNotFound
 		}
 		return nil, err
+	}
+	if !includePrivate && !problem.Visible {
+		return nil, ErrProblemNotFound
 	}
 
 	query := s.db.Model(&model.ProblemSolution{}).Where("problem_id = ?", problemID)
@@ -358,19 +368,56 @@ func (s *ProblemService) ListProblemSolutions(problemID uint64, includePrivate b
 	return result, nil
 }
 
-func (s *ProblemService) CreateProblemSolution(userID uint64, role string, problemID uint64, req dto.CreateProblemSolutionRequest) (*dto.ProblemSolutionResponse, error) {
-	if role != "admin" && role != "teacher" {
-		return nil, ErrPermissionDenied
-	}
-	if _, err := s.problemRepo.GetByID(problemID); err != nil {
+func (s *ProblemService) ListManageProblemSolutions(userID uint64, role string, problemID uint64) ([]dto.ProblemSolutionResponse, error) {
+	problem, err := s.problemRepo.GetByID(problemID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProblemNotFound
 		}
 		return nil, err
 	}
+	if role != "admin" && !problem.Visible {
+		return nil, ErrProblemNotFound
+	}
+
+	query := s.db.Model(&model.ProblemSolution{}).Where("problem_id = ?", problemID)
+	if role != "admin" {
+		query = query.Where("author_id = ?", userID)
+	}
+	var items []model.ProblemSolution
+	if err := query.Order("id ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return toProblemSolutionResponses(items), nil
+}
+
+func (s *ProblemService) CreateProblemSolution(userID uint64, role string, problemID uint64, req dto.CreateProblemSolutionRequest) (*dto.ProblemSolutionResponse, error) {
+	title := strings.TrimSpace(req.Title)
+	if title == "" || strings.TrimSpace(req.Content) == "" {
+		return nil, ErrInvalidProblemSolutionData
+	}
+	problem, err := s.problemRepo.GetByID(problemID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProblemNotFound
+		}
+		return nil, err
+	}
+	if role != "admin" && !problem.Visible {
+		return nil, ErrProblemNotFound
+	}
+	if role != "admin" {
+		ok, err := s.hasAcceptedProblem(userID, problemID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, ErrSolutionPublishNotAllowed
+		}
+	}
 	solution := model.ProblemSolution{
 		ProblemID:  problemID,
-		Title:      strings.TrimSpace(req.Title),
+		Title:      title,
 		Content:    req.Content,
 		Visibility: req.Visibility,
 		AuthorID:   userID,
@@ -384,8 +431,9 @@ func (s *ProblemService) CreateProblemSolution(userID uint64, role string, probl
 }
 
 func (s *ProblemService) UpdateProblemSolution(userID uint64, role string, problemID, solutionID uint64, req dto.CreateProblemSolutionRequest) (*dto.ProblemSolutionResponse, error) {
-	if role != "admin" && role != "teacher" {
-		return nil, ErrPermissionDenied
+	title := strings.TrimSpace(req.Title)
+	if title == "" || strings.TrimSpace(req.Content) == "" {
+		return nil, ErrInvalidProblemSolutionData
 	}
 	var solution model.ProblemSolution
 	if err := s.db.Where("id = ? AND problem_id = ?", solutionID, problemID).First(&solution).Error; err != nil {
@@ -397,7 +445,7 @@ func (s *ProblemService) UpdateProblemSolution(userID uint64, role string, probl
 	if role != "admin" && solution.AuthorID != userID {
 		return nil, ErrPermissionDenied
 	}
-	solution.Title = strings.TrimSpace(req.Title)
+	solution.Title = title
 	solution.Content = req.Content
 	solution.Visibility = req.Visibility
 	if err := s.db.Save(&solution).Error; err != nil {
@@ -409,9 +457,6 @@ func (s *ProblemService) UpdateProblemSolution(userID uint64, role string, probl
 }
 
 func (s *ProblemService) DeleteProblemSolution(userID uint64, role string, problemID, solutionID uint64) error {
-	if role != "admin" && role != "teacher" {
-		return ErrPermissionDenied
-	}
 	var solution model.ProblemSolution
 	if err := s.db.Where("id = ? AND problem_id = ?", solutionID, problemID).First(&solution).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -427,6 +472,33 @@ func (s *ProblemService) DeleteProblemSolution(userID uint64, role string, probl
 	}
 	s.invalidate()
 	return nil
+}
+
+func (s *ProblemService) hasAcceptedProblem(userID, problemID uint64) (bool, error) {
+	var count int64
+	if err := s.db.Model(&model.Submission{}).
+		Where("user_id = ? AND problem_id = ? AND status = ?", userID, problemID, "Accepted").
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func toProblemSolutionResponses(items []model.ProblemSolution) []dto.ProblemSolutionResponse {
+	result := make([]dto.ProblemSolutionResponse, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ProblemSolutionResponse{
+			ID:         item.ID,
+			ProblemID:  item.ProblemID,
+			Title:      item.Title,
+			Content:    item.Content,
+			Visibility: item.Visibility,
+			AuthorID:   item.AuthorID,
+			CreatedAt:  item.CreatedAt,
+			UpdatedAt:  item.UpdatedAt,
+		})
+	}
+	return result
 }
 
 func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTestcase, solutions []dto.ProblemSolutionResponse) dto.ProblemDetailResponse {
@@ -455,6 +527,7 @@ func toProblemDetailResponse(problem model.Problem, testcases []model.ProblemTes
 		Hint:          problem.Hint,
 		Source:        problem.Source,
 		JudgeMode:     problem.JudgeMode,
+		Difficulty:    problem.Difficulty,
 		TimeLimitMS:   problem.TimeLimitMS,
 		MemoryLimitMB: problem.MemoryLimitMB,
 		Visible:       problem.Visible,

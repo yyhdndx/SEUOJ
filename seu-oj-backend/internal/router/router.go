@@ -143,6 +143,15 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 		problemGroup.GET("/:id", problemHandler.Detail)
 	}
 
+	problemAuthGroup := apiGroup.Group("/problems")
+	problemAuthGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
+	{
+		problemAuthGroup.GET("/:id/solutions/manage", problemHandler.TeacherSolutionList)
+		problemAuthGroup.POST("/:id/solutions", problemHandler.CreateSolution)
+		problemAuthGroup.PUT("/:id/solutions/:solution_id", problemHandler.UpdateSolution)
+		problemAuthGroup.DELETE("/:id/solutions/:solution_id", problemHandler.DeleteSolution)
+	}
+
 	forumAuthGroup := apiGroup.Group("/forum")
 	forumAuthGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
 	{

@@ -423,15 +423,8 @@ async function renderContestProblemDetail(contestID, problemID) {
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
-      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
-      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
-        if (state.problemCodeEditor) {
-          state.problemCodeEditor.setValue(nextTemplate);
-        } else {
-          codeEditor.value = nextTemplate;
-        }
-      }
+      saveSubmissionDraft(problem.id, currentLanguage, getProblemEditorValue(codeEditor));
+      setProblemEditorValue(codeEditor, readSubmissionDraftCode(problem.id, nextLanguage));
       currentLanguage = nextLanguage;
       state.problemCodeEditor?.setLanguage(nextLanguage);
     });
@@ -441,6 +434,11 @@ async function renderContestProblemDetail(contestID, problemID) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before running.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       state.runResultPending = true;
       refreshRunResultPanel();
       try {
@@ -469,6 +467,11 @@ async function renderContestProblemDetail(contestID, problemID) {
       const language = (form.get("language") || "").toString();
       const code = (form.get("code") || "").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before submitting.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       try {
         const result = await apiFetch("/submissions", {
           method: "POST",

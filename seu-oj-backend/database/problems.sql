@@ -10,6 +10,7 @@ CREATE TABLE problems (
                           hint TEXT,
                           source VARCHAR(255) DEFAULT NULL,
                           judge_mode ENUM('standard') NOT NULL DEFAULT 'standard',
+                          difficulty TINYINT NOT NULL DEFAULT 0 CHECK (difficulty IN (0, 1, 2, 3)),
                           time_limit_ms INT NOT NULL DEFAULT 1000,
                           memory_limit_mb INT NOT NULL DEFAULT 128,
                           visible TINYINT(1) NOT NULL DEFAULT 1,

@@ -87,22 +87,6 @@
   background: rgba(255, 253, 248, 0.68);
 }
 
-.solution-stack {
-  display: grid;
-  gap: 14px;
-}
-
-.solution-card {
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 241, 228, 0.62));
-  padding: 16px;
-}
-
-.solution-title {
-  margin: 0;
-  font-size: 22px;
-}
-
 @media (max-width: 960px) {
   .teaching-summary-grid,
   .teaching-card-grid,

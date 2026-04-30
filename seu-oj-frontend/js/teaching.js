@@ -242,7 +242,7 @@ async function renderClasses() {
   }
 }
 
-﻿async function renderClassDetail(id) {
+async function renderClassDetail(id) {
   if (!state.token) {
     app.innerHTML = `<div class="detail-card"><p>Please login to access class detail.</p></div>`;
     return;
@@ -773,7 +773,7 @@ async function renderTeacherClasses() {
   }
 }
 
-﻿async function renderTeacherClassDetail(id) {
+async function renderTeacherClassDetail(id) {
   if (!isTeacherUser()) {
     app.innerHTML = `<div class="detail-card"><p>Teacher permission required.</p></div>`;
     return;
@@ -1070,156 +1070,6 @@ async function renderTeacherClasses() {
 }
 
 
-async function renderTeacherProblemSolutions(problemID) {
-  if (!isTeacherUser()) {
-    app.innerHTML = `<div class="detail-card"><p>Teacher permission required.</p></div>`;
-    return;
-  }
-  app.innerHTML = `<div class="detail-card"><p>Loading problem solutions...</p></div>`;
-  try {
-    const [problem, solutions] = await Promise.all([
-      apiFetch(`/problems/${problemID}`, { method: 'GET' }),
-      apiFetch(`/teacher/problems/${problemID}/solutions`, { method: 'GET' }),
-    ]);
-    const list = solutions.list || [];
-    app.innerHTML = `
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Manage Solutions</h1>
-          <p class="view-subtitle">${escapeHTML(problem.title)} / #${problem.id}</p>
-        </div>
-        <div style="display:flex; gap:10px;">
-          <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
-          ${state.user?.role === 'admin' ? `<a class="ghost-button" href="#/admin/problems/${problem.id}">Admin View</a>` : ''}
-        </div>
-      </div>
-      <section class="detail-grid">
-        <article class="detail-card">
-          <h3>Create Solution</h3>
-          <form id="problem-solution-form">
-            <label class="field-label">Title</label>
-            <input class="text-input" name="title" required />
-            <label class="field-label">Visibility</label>
-            <select class="select-input" name="visibility">
-              <option value="public">public</option>
-              <option value="private">private</option>
-            </select>
-            <label class="field-label">Content</label>
-            <textarea class="text-area" name="content" rows="12" required></textarea>
-            <div class="view-subtitle" style="margin-top:8px;">Markdown is supported in solution content.</div>
-            <div style="margin-top:14px;"><button class="primary-button" type="submit">Create Solution</button></div>
-          </form>
-        </article>
-        <aside class="detail-card">
-          <h3>Existing Solutions</h3>
-          ${list.length ? `
-            <div class="solution-stack">
-              ${list.map((item) => `
-                <article class="solution-card">
-                  <div class="view-header compact">
-                    <div>
-                      <h4 class="solution-title">${escapeHTML(item.title)}</h4>
-                      <p class="view-subtitle">Author #${item.author_id} / updated ${escapeHTML(item.updated_at)}</p>
-                    </div>
-                    <span class="status-pill ${teachingVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
-                  </div>
-                  <form class="solution-edit-form" data-solution-id="${item.id}">
-                    <label class="field-label">Title</label>
-                    <input class="text-input" name="title" value="${escapeHTML(item.title)}" required />
-                    <label class="field-label">Visibility</label>
-                    <select class="select-input" name="visibility">
-                      <option value="public" ${item.visibility === 'public' ? 'selected' : ''}>public</option>
-                      <option value="private" ${item.visibility === 'private' ? 'selected' : ''}>private</option>
-                    </select>
-                    <label class="field-label">Content</label>
-                    <textarea class="text-area" name="content" rows="10" required>${escapeHTML(item.content || '')}</textarea>
-                    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-                      <button class="ghost-button" type="submit">Save</button>
-                      <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
-                    </div>
-                  </form>
-                </article>
-              `).join('')}
-            </div>
-          ` : renderTeachingEmpty('No solutions yet.')}
-        </aside>
-      </section>
-    `;
-
-    document.getElementById('problem-solution-form')?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      try {
-        await apiFetch(`/teacher/problems/${problemID}/solutions`, {
-          method: 'POST',
-          body: JSON.stringify({
-            title: form.get('title'),
-            visibility: form.get('visibility'),
-            content: form.get('content'),
-          }),
-        });
-        setFlash('Solution created', false);
-        return renderTeacherProblemSolutions(problemID);
-      } catch (err) {
-        setFlash(err.message, true);
-      }
-    });
-
-    document.querySelectorAll('.solution-edit-form').forEach((formElement) => {
-      formElement.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const form = new FormData(formElement);
-        const solutionID = formElement.dataset.solutionId;
-        try {
-          await apiFetch(`/teacher/problems/${problemID}/solutions/${solutionID}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-              title: form.get('title'),
-              visibility: form.get('visibility'),
-              content: form.get('content'),
-            }),
-          });
-          setFlash(`Solution #${solutionID} updated`, false);
-          return renderTeacherProblemSolutions(problemID);
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
-
-    document.querySelectorAll('.solution-delete-button').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const solutionID = button.dataset.solutionId;
-        const confirmed = window.confirm(`Delete solution #${solutionID}?`);
-        if (!confirmed) return;
-        try {
-          await apiFetch(`/teacher/problems/${problemID}/solutions/${solutionID}`, { method: 'DELETE' });
-          setFlash(`Solution #${solutionID} deleted`, false);
-          return renderTeacherProblemSolutions(problemID);
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
-  } catch (err) {
-    app.innerHTML = `<div class="detail-card"><p>Load problem solutions failed: ${escapeHTML(err.message)}</p></div>`;
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 async function renderTeacherAssignmentOverview(id) {
   if (!isTeacherUser()) {
     app.innerHTML = `<div class="detail-card"><p>Teacher permission required.</p></div>`;
@@ -1439,15 +1289,3 @@ async function renderTeacherAssignmentOverview(id) {
     app.innerHTML = `<div class="detail-card"><p>Load teacher assignment overview failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-

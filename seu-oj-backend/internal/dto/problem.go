@@ -13,6 +13,7 @@ type CreateProblemRequest struct {
 	Hint          string                       `json:"hint"`
 	Source        string                       `json:"source" binding:"max=255"`
 	JudgeMode     string                       `json:"judge_mode" binding:"required,oneof=standard"`
+	Difficulty    int                          `json:"difficulty" binding:"min=0,max=3"`
 	TimeLimitMS   int                          `json:"time_limit_ms" binding:"required,min=1"`
 	MemoryLimitMB int                          `json:"memory_limit_mb" binding:"required,min=1"`
 	Visible       bool                         `json:"visible"`
@@ -46,6 +47,7 @@ type ProblemListItem struct {
 	DisplayID     string `json:"display_id"`
 	Title         string `json:"title"`
 	JudgeMode     string `json:"judge_mode"`
+	Difficulty    int    `json:"difficulty"`
 	TimeLimitMS   int    `json:"time_limit_ms"`
 	MemoryLimitMB int    `json:"memory_limit_mb"`
 	Visible       bool   `json:"visible"`
@@ -85,6 +87,7 @@ type ProblemDetailResponse struct {
 	Hint          string                    `json:"hint"`
 	Source        string                    `json:"source"`
 	JudgeMode     string                    `json:"judge_mode"`
+	Difficulty    int                       `json:"difficulty"`
 	TimeLimitMS   int                       `json:"time_limit_ms"`
 	MemoryLimitMB int                       `json:"memory_limit_mb"`
 	Visible       bool                      `json:"visible"`
@@ -96,12 +99,10 @@ type ProblemDetailResponse struct {
 }
 
 type ProblemStatsResponse struct {
-	ProblemID            uint64      `json:"problem_id"`
-	SubmissionsTotal     int64       `json:"submissions_total"`
-	AcceptedSubmissions  int64       `json:"accepted_submissions"`
-	AcceptedUsers        int64       `json:"accepted_users"`
-	AcceptedRate         float64     `json:"accepted_rate"`
-	LanguageBreakdown    []CountItem `json:"language_breakdown"`
+	ProblemID           uint64      `json:"problem_id"`
+	SubmissionsTotal    int64       `json:"submissions_total"`
+	AcceptedSubmissions int64       `json:"accepted_submissions"`
+	AcceptedUsers       int64       `json:"accepted_users"`
+	AcceptedRate        float64     `json:"accepted_rate"`
+	LanguageBreakdown   []CountItem `json:"language_breakdown"`
 }
-
-

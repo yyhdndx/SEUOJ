@@ -26,28 +26,29 @@ async function renderProblems() {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Display</th>
             <th>Title</th>
             <th>My Status</th>
             <th>Mode</th>
             <th>Time</th>
             <th>Memory</th>
-            <th>Created</th>
+            <th>Difficulty</th>
           </tr>
         </thead>
         <tbody>
-          ${state.problems.map((item) => `
+          ${state.problems.map((item) => {
+            const difficulty = getProblemDifficulty(item);
+            return `
             <tr>
-              <td>${item.id}</td>
               <td class="mono">${escapeHTML(item.display_id || "-")}</td>
               <td><a class="table-link" href="#/problems/${item.id}">${escapeHTML(item.title)}</a></td>
               <td>${renderProblemStatusPill(myProblemStatusMap[item.id])}</td>
               <td>${escapeHTML(item.judge_mode)}</td>
               <td>${item.time_limit_ms} ms</td>
               <td>${item.memory_limit_mb} MB</td>
-              <td class="mono">${escapeHTML(item.created_at)}</td>
+              <td>${escapeHTML(difficulty.label)}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     `;
@@ -177,15 +178,8 @@ async function renderProblemDetail(id) {
     let currentLanguage = selectedLanguage;
     languageSelect?.addEventListener("change", (event) => {
       const nextLanguage = event.currentTarget.value;
-      const previousTemplate = getDefaultCodeTemplate(currentLanguage);
-      if (!codeEditor.value.trim() || codeEditor.value === previousTemplate) {
-        const nextTemplate = getDefaultCodeTemplate(nextLanguage);
-        if (state.problemCodeEditor) {
-          state.problemCodeEditor.setValue(nextTemplate);
-        } else {
-          codeEditor.value = nextTemplate;
-        }
-      }
+      saveSubmissionDraft(problem.id, currentLanguage, getProblemEditorValue(codeEditor));
+      setProblemEditorValue(codeEditor, readSubmissionDraftCode(problem.id, nextLanguage));
       currentLanguage = nextLanguage;
       state.problemCodeEditor?.setLanguage(nextLanguage);
     });
@@ -206,6 +200,11 @@ async function renderProblemDetail(id) {
       const code = (form.get("code") || "").toString();
       const language = (form.get("language") || "cpp").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before running.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       state.runResultPending = true;
       refreshRunResultPanel();
 
@@ -240,6 +239,11 @@ async function renderProblemDetail(id) {
       const language = (form.get("language") || "").toString();
       const code = (form.get("code") || "").toString();
       saveSubmissionDraft(problem.id, language, code);
+      if (!code.trim()) {
+        setFlash("Please enter code before submitting.", true);
+        state.problemCodeEditor?.focus();
+        return;
+      }
       try {
         const result = await apiFetch("/submissions", {
           method: "POST",
@@ -261,24 +265,21 @@ async function renderProblemDetail(id) {
 }
 
 function getProblemDifficulty(problem) {
-  const rawDifficulty = [
-    problem?.difficulty,
-    problem?.difficulty_label,
-    problem?.level,
-    problem?.level_name,
-  ].find((value) => value !== undefined && value !== null && String(value).trim());
-  const normalized = String(rawDifficulty || "Unknown").trim();
-  const lower = normalized.toLowerCase();
+  const difficultyValue = Number(problem?.difficulty);
+  let label = "未知";
   let className = "status-neutral";
-  if (lower.includes("easy")) {
+  if (difficultyValue === 1) {
+    label = "简单";
     className = "status-accepted";
-  } else if (lower.includes("medium")) {
+  } else if (difficultyValue === 2) {
+    label = "中等";
     className = "status-pending";
-  } else if (lower.includes("hard")) {
+  } else if (difficultyValue === 3) {
+    label = "困难";
     className = "status-wrong";
   }
   return {
-    label: normalized,
+    label,
     className,
   };
 }
@@ -439,7 +440,7 @@ function renderProblemSolutions(solutions, problemID) {
           <h3>Solutions</h3>
           <p class="view-subtitle">Editorial notes and official write-ups for this problem.</p>
         </div>
-        ${isTeacherUser() ? `<a class="ghost-button" href="#/teacher/problems/${problemID}/solutions">Manage Solutions</a>` : ""}
+        ${state.user ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage Solutions</a>` : ""}
       </div>
       ${list.length ? `
         <div class="solution-stack">
