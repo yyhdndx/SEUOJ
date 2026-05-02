@@ -32,16 +32,23 @@ function forumStatusPills(topic) {
   return pills.join("");
 }
 
+function formatForumDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "-";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function forumMetaLine(topic) {
-  const created = topic.created_at ? escapeHTML(topic.created_at) : "-";
-  const lastReply = topic.last_reply_at ? escapeHTML(topic.last_reply_at) : "-";
+  const created = formatForumDate(topic.created_at);
   return `
     <div class="forum-topic-meta">
       <span class="forum-meta-item"><strong>${escapeHTML(topic.author_name || "-")}</strong></span>
       <span class="forum-meta-sep">·</span>
-      <span class="forum-meta-item">created <span class="mono">${created}</span></span>
-      <span class="forum-meta-sep">·</span>
-      <span class="forum-meta-item">last reply <span class="mono">${lastReply}</span></span>
+      <span class="forum-meta-item">${created}</span>
     </div>
   `;
 }
@@ -84,6 +91,22 @@ function renderForumSummaryCards(result, scopeType, scopeID) {
   `;
 }
 
+function renderMarkdownPreview(source, maxChars) {
+  const text = (source || "").toString().trim();
+  if (!text) return "";
+  const limit = maxChars || 400;
+  if (text.length <= limit) return renderMarkdown(text);
+  let truncated = text.substring(0, limit);
+  const lastNewline = truncated.lastIndexOf("\n");
+  if (lastNewline > limit * 0.6) {
+    truncated = truncated.substring(0, lastNewline);
+  } else {
+    const lastSpace = truncated.lastIndexOf(" ");
+    if (lastSpace > limit * 0.8) truncated = truncated.substring(0, lastSpace);
+  }
+  return renderMarkdown(truncated.trimEnd()) + `<span class="forum-preview-ellipsis">&hellip;</span>`;
+}
+
 function renderForumTopicCards(list) {
   if (!list.length) {
     return `<div class="detail-card"><p>No topics yet.</p></div>`;
@@ -91,28 +114,127 @@ function renderForumTopicCards(list) {
   return `
     <div class="forum-topic-list">
       ${list.map((item) => `
-        <article class="forum-topic-card ${item.is_pinned ? "pinned" : ""} ${item.is_locked ? "locked" : ""}">
-          <div class="forum-topic-head">
-            <div class="forum-topic-head-main">
-              <div class="forum-topic-title-row">
-                <h3 class="forum-topic-title"><a class="table-link" href="#/forum/topics/${item.id}">${escapeHTML(item.title)}</a></h3>
-              </div>
-              ${forumMetaLine(item)}
-              <div class="pill-row forum-topic-pill-row">
-                ${forumStatusPills(item)}
-                ${forumStatsPills(item)}
-              </div>
-            </div>
-            <div class="forum-topic-head-actions">
-              <a class="ghost-button" href="#/forum/topics/${item.id}">View</a>
-              <a class="ghost-button" href="#/forum?scope_type=${encodeURIComponent(item.scope_type || "")}${item.scope_id ? `&scope_id=${encodeURIComponent(item.scope_id)}` : ""}">More in Zone</a>
-            </div>
+        <article class="forum-topic-card ${item.is_pinned ? "pinned" : ""} ${item.is_locked ? "locked" : ""}" data-topic-id="${item.id}">
+          <h3 class="forum-topic-title">${escapeHTML(item.title)}</h3>
+          ${forumMetaLine(item)}
+          <div class="pill-row forum-topic-pill-row">
+            ${forumStatusPills(item)}
+            ${forumStatsPills(item)}
           </div>
-          ${item.content_preview ? `<p class="forum-topic-preview">${escapeHTML(item.content_preview || "")}</p>` : ""}
+          ${item.content_preview ? `<div class="forum-topic-preview">${renderMarkdownPreview(item.content_preview)}</div>` : ""}
+          <div class="forum-topic-actions">
+            <button class="forum-like-btn ${item.is_liked ? 'is-active' : ''}" data-topic-id="${item.id}" data-action="like" aria-label="Like">&#9825; <span class="forum-like-count">${item.like_count || 0}</span></button>
+            <button class="forum-fav-btn ${item.is_favorited ? 'is-active' : ''}" data-topic-id="${item.id}" data-action="favorite" aria-label="Favorite">&#9733; <span class="forum-fav-count">${item.favorite_count || 0}</span></button>
+          </div>
         </article>
       `).join("")}
     </div>
   `;
+}
+
+function openForumComposeModal(scopeType, scopeID) {
+  const overlay = document.createElement("div");
+  overlay.id = "forum-compose-overlay";
+  overlay.className = "forum-compose-overlay";
+  overlay.innerHTML = `
+    <div class="forum-compose-modal">
+      <div class="forum-compose-modal-header">
+        <h3 class="view-title" style="margin:0;">New Topic</h3>
+        <button class="forum-compose-modal-close ghost-button" type="button" aria-label="Close">&times;</button>
+      </div>
+      <form id="forum-compose-modal-form">
+        <div id="forum-compose-modal-error" class="flash error" style="display:none; margin-bottom:14px;"></div>
+        <label class="field-label">Title</label>
+        <input class="text-input" name="title" required />
+        <label class="field-label">Zone</label>
+        <select class="select-input" name="scope_type">
+          <option value="general" ${scopeType === "general" || !scopeType ? "selected" : ""}>general</option>
+          <option value="problem" ${scopeType === "problem" ? "selected" : ""}>problem</option>
+          <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
+        </select>
+        <label class="field-label">Content</label>
+        <textarea class="text-area" name="content" rows="10" required></textarea>
+        <div class="view-subtitle" style="margin-top:8px;">Markdown is supported. Use fenced code blocks for snippets and keep clarifications concise.</div>
+        <div style="margin-top:14px; display:flex; gap:10px;">
+          <button class="primary-button" type="submit">Post Topic</button>
+          <button class="ghost-button" type="button" id="forum-compose-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  function dismiss() {
+    closeForumComposeModal(overlay, handleKey);
+  }
+
+  function handleKey(e) {
+    if (e.key === "Escape") dismiss();
+  }
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) dismiss();
+  });
+  overlay.querySelector(".forum-compose-modal-close")?.addEventListener("click", dismiss);
+  overlay.querySelector("#forum-compose-modal-cancel")?.addEventListener("click", dismiss);
+  document.addEventListener("keydown", handleKey);
+
+  overlay.querySelector("#forum-compose-modal-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const createScopeType = (form.get("scope_type") || "general").toString();
+    const rawScopeID = (createScopeType === scopeType && scopeID) ? scopeID : "";
+    try {
+      const topic = await apiFetch("/forum/topics", {
+        method: "POST",
+        body: JSON.stringify({
+          title: form.get("title"),
+          content: form.get("content"),
+          scope_type: createScopeType,
+          scope_id: createScopeType === "general" || !rawScopeID ? null : Number(rawScopeID),
+        }),
+      });
+      closeForumComposeModal(overlay, handleKey);
+      setFlash(`Topic #${topic.id} created`, false);
+      location.hash = `#/forum/topics/${topic.id}`;
+    } catch (err) {
+      const errorBox = overlay.querySelector("#forum-compose-modal-error");
+      if (errorBox) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = "block";
+      }
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function closeForumComposeModal(overlay, handleKey) {
+  const form = overlay?.querySelector("#forum-compose-modal-form");
+  const title = form?.querySelector('[name="title"]')?.value?.trim();
+  const content = form?.querySelector('[name="content"]')?.value?.trim();
+  if (title || content) {
+    if (!window.confirm("Discard unsaved content?")) return;
+  }
+  document.removeEventListener("keydown", handleKey);
+  overlay?.remove();
+}
+
+async function toggleForumReaction(topicID, action, activate, btn) {
+  const method = activate ? "POST" : "DELETE";
+  try {
+    await apiFetch(`/forum/topics/${topicID}/${action}`, { method });
+    const countSpan = btn.querySelector("span");
+    const current = Number(countSpan.textContent) || 0;
+    if (activate) {
+      btn.classList.add("is-active");
+      countSpan.textContent = current + 1;
+    } else {
+      btn.classList.remove("is-active");
+      countSpan.textContent = Math.max(current - 1, 0);
+    }
+  } catch (err) {
+    setFlash(err.message, true);
+  }
 }
 
 async function renderForum() {
@@ -161,7 +283,7 @@ async function renderForum() {
         </div>
       </div>
       ${renderForumSummaryCards(topics, scopeType, scopeID)}
-      <section class="detail-grid" style="margin-top:18px; align-items:start;">
+      <section style="margin-top:18px;">
         <article class="detail-card forum-panel-card">
           <div class="view-header compact">
             <div>
@@ -190,10 +312,6 @@ async function renderForum() {
                   <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
                 </select>
               </div>
-              <div class="forum-filter-field id">
-                <label class="field-label">Zone ID <span class="view-subtitle" style="display:inline;">(optional)</span></label>
-                <input class="text-input" name="scope_id" value="${escapeHTML(scopeID)}" placeholder="problem_id / contest_id" />
-              </div>
               <div class="forum-filter-field actions">
                 <div class="forum-filter-actions">
                   <button class="primary-button" type="submit">Search</button>
@@ -204,34 +322,9 @@ async function renderForum() {
             <p class="view-subtitle" style="margin:10px 0 0;">Tip: open a problem or contest and click <strong>Discuss</strong> to jump into its zone automatically.</p>
           </form>
         </article>
-        <aside class="detail-card forum-panel-card">
-          <div class="view-header compact">
-            <div>
-              <h3>New Topic</h3>
-              <p class="view-subtitle">Start a thread for problem ideas, contest clarifications, or general training discussion.</p>
-            </div>
-          </div>
-          ${state.user ? `
-            <form id="forum-create-form">
-              <label class="field-label">Title</label>
-              <input class="text-input" name="title" required />
-              <label class="field-label">Zone</label>
-              <select class="select-input" name="scope_type">
-                <option value="general" ${scopeType === "general" || !scopeType ? "selected" : ""}>general</option>
-                <option value="problem" ${scopeType === "problem" ? "selected" : ""}>problem</option>
-                <option value="contest" ${scopeType === "contest" ? "selected" : ""}>contest</option>
-              </select>
-              <label class="field-label">Zone ID</label>
-              <input class="text-input" name="scope_id" value="${escapeHTML(scopeID)}" placeholder="required for problem/contest" />
-              <label class="field-label">Content</label>
-              <textarea class="text-area" name="content" rows="10" required></textarea>
-              <div class="view-subtitle" style="margin-top:8px;">Markdown is supported. Use fenced code blocks for snippets and keep clarifications concise.</div>
-              <div style="margin-top:14px;"><button class="primary-button" type="submit">Post Topic</button></div>
-            </form>
-          ` : `<p class="view-subtitle">Login to create new topics and participate in discussion.</p>`}
-        </aside>
       </section>
       <section style="margin-top:18px;">${renderForumTopicCards(topicList)}</section>
+      ${state.user ? `<button id="forum-compose-fab" class="forum-compose-fab" title="New Topic"><span class="forum-compose-fab-icon">+</span></button>` : ""}
     `;
 
     document.getElementById("forum-filter-form")?.addEventListener("submit", (event) => {
@@ -240,10 +333,9 @@ async function renderForum() {
       const next = new URLSearchParams();
       const nextKeyword = (form.get("keyword") || "").toString().trim();
       const nextScopeType = (form.get("scope_type") || "").toString().trim();
-      const nextScopeID = (form.get("scope_id") || "").toString().trim();
       if (nextKeyword) next.set("keyword", nextKeyword);
       if (nextScopeType) next.set("scope_type", nextScopeType);
-      if (nextScopeID) next.set("scope_id", nextScopeID);
+      if (nextScopeType === scopeType && scopeID) next.set("scope_id", scopeID);
       next.set("page", "1");
       next.set("page_size", String(pageSize));
       location.hash = `#/forum?${next.toString()}`;
@@ -255,26 +347,25 @@ async function renderForum() {
       document.getElementById("forum-filter-form")?.dispatchEvent(new Event("submit", { cancelable: true }));
     });
 
-    document.getElementById("forum-create-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      const createScopeType = (form.get("scope_type") || "general").toString();
-      const rawScopeID = (form.get("scope_id") || "").toString().trim();
-      try {
-        const topic = await apiFetch("/forum/topics", {
-          method: "POST",
-          body: JSON.stringify({
-            title: form.get("title"),
-            content: form.get("content"),
-            scope_type: createScopeType,
-            scope_id: createScopeType === "general" || !rawScopeID ? null : Number(rawScopeID),
-          }),
-        });
-        setFlash(`Topic #${topic.id} created`, false);
-        location.hash = `#/forum/topics/${topic.id}`;
-      } catch (err) {
-        setFlash(err.message, true);
+    document.getElementById("forum-compose-fab")?.addEventListener("click", () => {
+      openForumComposeModal(scopeType, scopeID);
+    });
+
+    document.querySelector(".forum-topic-list")?.addEventListener("click", (event) => {
+      const btn = event.target.closest(".forum-like-btn, .forum-fav-btn");
+      if (btn) {
+        event.stopPropagation();
+        const topicID = btn.dataset.topicId;
+        const action = btn.dataset.action;
+        const isActive = btn.classList.contains("is-active");
+        toggleForumReaction(topicID, action, !isActive, btn);
+        return;
       }
+      const card = event.target.closest(".forum-topic-card");
+      if (!card) return;
+      if (event.target.closest("a")) return;
+      const topicID = card.dataset.topicId;
+      if (topicID) location.hash = `#/forum/topics/${topicID}`;
     });
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load forum failed: ${escapeHTML(err.message)}</p></div>`;
@@ -297,6 +388,7 @@ async function renderForumTopicDetail(id) {
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <a class="ghost-button" href="#/forum?scope_type=${encodeURIComponent(detail.scope_type)}${detail.scope_id ? `&scope_id=${detail.scope_id}` : ""}">Back to Topics</a>
           <a class="ghost-button" href="${forumScopeLink(detail.scope_type, detail.scope_id)}">Open Scope</a>
+          ${state.user ? `<button class="ghost-button forum-like-btn ${detail.is_liked ? 'is-active' : ''}" id="forum-detail-like-btn">&#9825; ${detail.is_liked ? 'Liked' : 'Like'} (<span id="forum-detail-like-count">${detail.like_count || 0}</span>)</button><button class="ghost-button forum-fav-btn ${detail.is_favorited ? 'is-active' : ''}" id="forum-detail-fav-btn">&#9733; ${detail.is_favorited ? 'Saved' : 'Save'} (<span id="forum-detail-fav-count">${detail.favorite_count || 0}</span>)</button>` : ""}
           ${canManageTopic ? `<button class="ghost-button" type="button" id="forum-topic-edit-btn">Edit Topic</button><button class="ghost-button" type="button" id="forum-topic-delete-btn">Delete Topic</button>` : ""}
         </div>
       </div>
@@ -312,6 +404,8 @@ async function renderForumTopicDetail(id) {
           <div class="teaching-meta-grid">
             <div class="teaching-meta-card"><span class="teaching-meta-label">Scope</span><span class="teaching-meta-value">${escapeHTML(forumScopeLabel(detail.scope_type, detail.scope_id))}</span></div>
             <div class="teaching-meta-card"><span class="teaching-meta-label">Replies</span><span class="teaching-meta-value">${detail.reply_count}</span></div>
+            <div class="teaching-meta-card"><span class="teaching-meta-label">Likes</span><span class="teaching-meta-value">&#9825; ${detail.like_count || 0}</span></div>
+            <div class="teaching-meta-card"><span class="teaching-meta-label">Favorites</span><span class="teaching-meta-value">&#9733; ${detail.favorite_count || 0}</span></div>
             <div class="teaching-meta-card"><span class="teaching-meta-label">Created</span><span class="teaching-meta-value mono">${escapeHTML(detail.created_at)}</span></div>
             <div class="teaching-meta-card"><span class="teaching-meta-label">Updated</span><span class="teaching-meta-value mono">${escapeHTML(detail.updated_at)}</span></div>
           </div>
@@ -365,6 +459,22 @@ async function renderForumTopicDetail(id) {
         ` : `<p class="view-subtitle">Login to reply.</p>`}
       </section>
     `;
+
+    document.getElementById("forum-detail-like-btn")?.addEventListener("click", async () => {
+      const btn = document.getElementById("forum-detail-like-btn");
+      if (!btn) return;
+      const activate = !btn.classList.contains("is-active");
+      await toggleForumReaction(id, "like", activate, btn);
+      return renderForumTopicDetail(id);
+    });
+
+    document.getElementById("forum-detail-fav-btn")?.addEventListener("click", async () => {
+      const btn = document.getElementById("forum-detail-fav-btn");
+      if (!btn) return;
+      const activate = !btn.classList.contains("is-active");
+      await toggleForumReaction(id, "favorite", activate, btn);
+      return renderForumTopicDetail(id);
+    });
 
     document.getElementById("forum-reply-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();

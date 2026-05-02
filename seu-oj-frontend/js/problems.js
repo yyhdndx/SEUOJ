@@ -102,6 +102,9 @@ async function renderProblemDetail(id) {
                 <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
                 <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
               </div>
+              <div style="margin-top:10px;">
+                <a class="ghost-button" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
+              </div>
             </div>
           </div>
           <div class="pane-content">

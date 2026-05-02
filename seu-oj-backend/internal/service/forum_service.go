@@ -19,6 +19,7 @@ var (
 	ErrForumReplyNotFound = errors.New("forum reply not found")
 	ErrForumForbidden     = errors.New("forum access denied")
 	ErrForumLocked        = errors.New("forum topic locked")
+	ErrForumAlreadyLiked  = errors.New("already liked")
 )
 
 type ForumService struct {
@@ -30,20 +31,27 @@ func NewForumService(db *gorm.DB, cacheStore *cache.Cache) *ForumService {
 	return &ForumService{db: db, cache: cacheStore}
 }
 
-func (s *ForumService) ListTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64) (*dto.ForumTopicListResponse, error) {
+func (s *ForumService) ListTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64, userID *uint64) (*dto.ForumTopicListResponse, error) {
 	scopeValue := uint64(0)
 	if scopeID != nil {
 		scopeValue = *scopeID
 	}
 	key := fmt.Sprintf("cache:forum:topics:p%d:s%d:k%s:t%s:id%d", page, pageSize, strings.TrimSpace(keyword), strings.TrimSpace(scopeType), scopeValue)
-	return cache.GetOrSet(context.Background(), s.cache, key, 20*time.Second, func() (*dto.ForumTopicListResponse, error) {
+	result, err := cache.GetOrSet(context.Background(), s.cache, key, 20*time.Second, func() (*dto.ForumTopicListResponse, error) {
 		return s.listTopics(page, pageSize, keyword, scopeType, scopeID)
 	})
+	if err != nil {
+		return nil, err
+	}
+	if userID != nil {
+		s.hydrateUserReactions(*userID, result.List)
+	}
+	return result, nil
 }
 
 func (s *ForumService) listTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64) (*dto.ForumTopicListResponse, error) {
 	query := s.db.Table("forum_topics t").
-		Select("t.id, t.title, LEFT(t.content, 160) AS content_preview, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
+		Select("t.id, t.title, LEFT(t.content, 160) AS content_preview, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.like_count, t.favorite_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
 		Joins("JOIN users u ON u.id = t.author_id")
 	if scopeType = strings.TrimSpace(scopeType); scopeType != "" {
 		query = query.Where("t.scope_type = ?", scopeType)
@@ -65,17 +73,24 @@ func (s *ForumService) listTopics(page, pageSize int, keyword, scopeType string,
 	return &dto.ForumTopicListResponse{List: list, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-func (s *ForumService) GetTopicDetail(id uint64) (*dto.ForumTopicDetailResponse, error) {
+func (s *ForumService) GetTopicDetail(id uint64, userID *uint64) (*dto.ForumTopicDetailResponse, error) {
 	key := fmt.Sprintf("cache:forum:topics:detail:%d", id)
-	return cache.GetOrSet(context.Background(), s.cache, key, 30*time.Second, func() (*dto.ForumTopicDetailResponse, error) {
+	result, err := cache.GetOrSet(context.Background(), s.cache, key, 30*time.Second, func() (*dto.ForumTopicDetailResponse, error) {
 		return s.getTopicDetail(id)
 	})
+	if err != nil {
+		return nil, err
+	}
+	if userID != nil {
+		s.hydrateTopicReactions(*userID, result)
+	}
+	return result, nil
 }
 
 func (s *ForumService) getTopicDetail(id uint64) (*dto.ForumTopicDetailResponse, error) {
 	var topic dto.ForumTopicDetailResponse
 	if err := s.db.Table("forum_topics t").
-		Select("t.id, t.title, t.content, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
+		Select("t.id, t.title, t.content, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.like_count, t.favorite_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
 		Joins("JOIN users u ON u.id = t.author_id").
 		Where("t.id = ?", id).
 		Take(&topic).Error; err != nil {
@@ -124,7 +139,7 @@ func (s *ForumService) CreateTopic(userID uint64, req dto.CreateForumTopicReques
 		return nil, err
 	}
 	s.invalidate()
-	return s.GetTopicDetail(topic.ID)
+	return s.GetTopicDetail(topic.ID, nil)
 }
 
 func (s *ForumService) UpdateTopic(userID uint64, role string, topicID uint64, req dto.UpdateForumTopicRequest) (*dto.ForumTopicDetailResponse, error) {
@@ -152,7 +167,7 @@ func (s *ForumService) UpdateTopic(userID uint64, role string, topicID uint64, r
 		return nil, err
 	}
 	s.invalidate()
-	return s.GetTopicDetail(topic.ID)
+	return s.GetTopicDetail(topic.ID, nil)
 }
 
 func (s *ForumService) DeleteTopic(userID uint64, role string, topicID uint64) error {
@@ -264,6 +279,85 @@ func (s *ForumService) DeleteReply(userID uint64, role string, replyID uint64) e
 	}); err != nil {
 		return err
 	}
+	s.invalidate()
+	return nil
+}
+
+func (s *ForumService) hydrateUserReactions(userID uint64, items []dto.ForumTopicListItem) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]uint64, len(items))
+	for i, it := range items {
+		ids[i] = it.ID
+	}
+	var likedIDs []uint64
+	s.db.Model(&model.ForumTopicLike{}).Where("user_id = ? AND topic_id IN ?", userID, ids).Pluck("topic_id", &likedIDs)
+	likedSet := make(map[uint64]bool, len(likedIDs))
+	for _, id := range likedIDs {
+		likedSet[id] = true
+	}
+	var favedIDs []uint64
+	s.db.Model(&model.ForumTopicFavorite{}).Where("user_id = ? AND topic_id IN ?", userID, ids).Pluck("topic_id", &favedIDs)
+	favedSet := make(map[uint64]bool, len(favedIDs))
+	for _, id := range favedIDs {
+		favedSet[id] = true
+	}
+	for i := range items {
+		items[i].IsLiked = likedSet[items[i].ID]
+		items[i].IsFavorited = favedSet[items[i].ID]
+	}
+}
+
+func (s *ForumService) hydrateTopicReactions(userID uint64, topic *dto.ForumTopicDetailResponse) {
+	var likeCount int64
+	s.db.Model(&model.ForumTopicLike{}).Where("user_id = ? AND topic_id = ?", userID, topic.ID).Count(&likeCount)
+	topic.IsLiked = likeCount > 0
+	var favCount int64
+	s.db.Model(&model.ForumTopicFavorite{}).Where("user_id = ? AND topic_id = ?", userID, topic.ID).Count(&favCount)
+	topic.IsFavorited = favCount > 0
+}
+
+func (s *ForumService) LikeTopic(ctx context.Context, topicID, userID uint64) error {
+	if err := s.db.WithContext(ctx).Create(&model.ForumTopicLike{TopicID: topicID, UserID: userID}).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return ErrForumAlreadyLiked
+		}
+		return err
+	}
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("like_count", gorm.Expr("like_count + 1"))
+	s.invalidate()
+	return nil
+}
+
+func (s *ForumService) UnlikeTopic(ctx context.Context, topicID, userID uint64) error {
+	result := s.db.WithContext(ctx).Where("topic_id = ? AND user_id = ?", topicID, userID).Delete(&model.ForumTopicLike{})
+	if result.RowsAffected == 0 {
+		return nil
+	}
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("like_count", gorm.Expr("GREATEST(like_count - 1, 0)"))
+	s.invalidate()
+	return nil
+}
+
+func (s *ForumService) FavoriteTopic(ctx context.Context, topicID, userID uint64) error {
+	if err := s.db.WithContext(ctx).Create(&model.ForumTopicFavorite{TopicID: topicID, UserID: userID}).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return ErrForumAlreadyLiked
+		}
+		return err
+	}
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("favorite_count", gorm.Expr("favorite_count + 1"))
+	s.invalidate()
+	return nil
+}
+
+func (s *ForumService) UnfavoriteTopic(ctx context.Context, topicID, userID uint64) error {
+	result := s.db.WithContext(ctx).Where("topic_id = ? AND user_id = ?", topicID, userID).Delete(&model.ForumTopicFavorite{})
+	if result.RowsAffected == 0 {
+		return nil
+	}
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)"))
 	s.invalidate()
 	return nil
 }

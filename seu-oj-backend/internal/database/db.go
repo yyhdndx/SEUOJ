@@ -27,6 +27,8 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&model.ProblemSolution{},
 		&model.ForumTopic{},
 		&model.ForumReply{},
+		&model.ForumTopicLike{},
+		&model.ForumTopicFavorite{},
 	); err != nil {
 		return nil, err
 	}
@@ -49,6 +51,12 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		if err := db.Exec("ALTER TABLE forum_topics ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pinned").Error; err != nil {
 			return nil, err
 		}
+	}
+	if !db.Migrator().HasColumn(&model.ForumTopic{}, "like_count") {
+		_ = db.Exec("ALTER TABLE forum_topics ADD COLUMN like_count BIGINT NOT NULL DEFAULT 0 AFTER is_locked").Error
+	}
+	if !db.Migrator().HasColumn(&model.ForumTopic{}, "favorite_count") {
+		_ = db.Exec("ALTER TABLE forum_topics ADD COLUMN favorite_count BIGINT NOT NULL DEFAULT 0 AFTER like_count").Error
 	}
 	return db, nil
 }

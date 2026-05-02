@@ -37,6 +37,10 @@ type ForumTopicListItem struct {
 	AuthorID       uint64     `json:"author_id"`
 	AuthorName     string     `json:"author_name"`
 	ReplyCount     int        `json:"reply_count"`
+	LikeCount      int        `json:"like_count"`
+	FavoriteCount  int        `json:"favorite_count"`
+	IsLiked        bool       `json:"is_liked"`
+	IsFavorited    bool       `json:"is_favorited"`
 	IsPinned       bool       `json:"is_pinned"`
 	IsLocked       bool       `json:"is_locked"`
 	LastReplyAt    *time.Time `json:"last_reply_at"`
@@ -62,18 +66,22 @@ type ForumReplyResponse struct {
 }
 
 type ForumTopicDetailResponse struct {
-	ID          uint64               `json:"id"`
-	Title       string               `json:"title"`
-	Content     string               `json:"content"`
-	ScopeType   string               `json:"scope_type"`
-	ScopeID     *uint64              `json:"scope_id"`
-	AuthorID    uint64               `json:"author_id"`
-	AuthorName  string               `json:"author_name"`
-	ReplyCount  int                  `json:"reply_count"`
-	IsPinned    bool                 `json:"is_pinned"`
-	IsLocked    bool                 `json:"is_locked"`
-	LastReplyAt *time.Time           `json:"last_reply_at"`
-	CreatedAt   time.Time            `json:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at"`
-	Replies     []ForumReplyResponse `json:"replies" gorm:"-"`
+	ID            uint64               `json:"id"`
+	Title         string               `json:"title"`
+	Content       string               `json:"content"`
+	ScopeType     string               `json:"scope_type"`
+	ScopeID       *uint64              `json:"scope_id"`
+	AuthorID      uint64               `json:"author_id"`
+	AuthorName    string               `json:"author_name"`
+	ReplyCount    int                  `json:"reply_count"`
+	LikeCount     int                  `json:"like_count"`
+	FavoriteCount int                  `json:"favorite_count"`
+	IsLiked       bool                 `json:"is_liked"`
+	IsFavorited   bool                 `json:"is_favorited"`
+	IsPinned      bool                 `json:"is_pinned"`
+	IsLocked      bool                 `json:"is_locked"`
+	LastReplyAt   *time.Time           `json:"last_reply_at"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+	Replies       []ForumReplyResponse `json:"replies" gorm:"-"`
 }

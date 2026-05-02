@@ -31,7 +31,8 @@ func (h *ForumHandler) ListTopics(c *gin.Context) {
 	if query.ScopeID != 0 {
 		scopeID = &query.ScopeID
 	}
-	result, err := h.service.ListTopics(query.Page, query.PageSize, query.Keyword, query.ScopeType, scopeID)
+	optionalUserID := getOptionalUserID(c)
+	result, err := h.service.ListTopics(query.Page, query.PageSize, query.Keyword, query.ScopeType, scopeID, optionalUserID)
 	if err != nil {
 		response.Error(c, "query forum topics failed")
 		return
@@ -45,7 +46,8 @@ func (h *ForumHandler) TopicDetail(c *gin.Context) {
 		response.Error(c, "invalid topic id")
 		return
 	}
-	result, err := h.service.GetTopicDetail(id)
+	optionalUserID := getOptionalUserID(c)
+	result, err := h.service.GetTopicDetail(id, optionalUserID)
 	if err != nil {
 		if errors.Is(err, service.ErrForumTopicNotFound) {
 			response.Error(c, "topic not found")
@@ -238,4 +240,80 @@ func (h *ForumHandler) DeleteReply(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"reply_id": replyID})
+}
+
+func (h *ForumHandler) LikeTopic(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	topicID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid topic id")
+		return
+	}
+	if err := h.service.LikeTopic(c.Request.Context(), topicID, userID); err != nil {
+		if errors.Is(err, service.ErrForumAlreadyLiked) {
+			response.Error(c, "already liked")
+		} else {
+			response.Error(c, "like topic failed")
+		}
+		return
+	}
+	response.OK(c, gin.H{"liked": true})
+}
+
+func (h *ForumHandler) UnlikeTopic(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	topicID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid topic id")
+		return
+	}
+	if err := h.service.UnlikeTopic(c.Request.Context(), topicID, userID); err != nil {
+		response.Error(c, "unlike topic failed")
+		return
+	}
+	response.OK(c, gin.H{"liked": false})
+}
+
+func (h *ForumHandler) FavoriteTopic(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	topicID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid topic id")
+		return
+	}
+	if err := h.service.FavoriteTopic(c.Request.Context(), topicID, userID); err != nil {
+		if errors.Is(err, service.ErrForumAlreadyLiked) {
+			response.Error(c, "already favorited")
+		} else {
+			response.Error(c, "favorite topic failed")
+		}
+		return
+	}
+	response.OK(c, gin.H{"favorited": true})
+}
+
+func (h *ForumHandler) UnfavoriteTopic(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	topicID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid topic id")
+		return
+	}
+	if err := h.service.UnfavoriteTopic(c.Request.Context(), topicID, userID); err != nil {
+		response.Error(c, "unfavorite topic failed")
+		return
+	}
+	response.OK(c, gin.H{"favorited": false})
 }
