@@ -7,6 +7,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { cpp } from "@codemirror/lang-cpp";
 import { go } from "@codemirror/lang-go";
 import { java } from "@codemirror/lang-java";
+import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
 import { tags } from "@lezer/highlight";
@@ -114,6 +115,51 @@ const problemEditorHighlightStyle = HighlightStyle.define([
   { tag: [tags.operator, tags.punctuation, tags.separator], color: "#5a4f3c" },
   { tag: [tags.variableName, tags.propertyName], color: "#1f252f" },
 ]);
+
+const solutionMarkdownEditorTheme = EditorView.theme({
+  "&": {
+    height: "100%",
+    minHeight: "460px",
+    fontSize: "14px",
+    color: "#1f252f",
+    backgroundColor: "#fbfaf6",
+    border: "1px solid #c7b894",
+    borderRadius: "8px",
+  },
+  ".cm-scroller": {
+    overflow: "auto",
+    fontFamily: '"IBM Plex Mono", "Consolas", monospace',
+    lineHeight: "1.7",
+  },
+  ".cm-content": {
+    minHeight: "100%",
+    padding: "14px 0",
+    caretColor: "#8c4b12",
+  },
+  ".cm-line": {
+    padding: "0 16px",
+  },
+  ".cm-gutters": {
+    backgroundColor: "#f4efe4",
+    color: "#7a705a",
+    borderRight: "1px solid #dacfb6",
+    borderTopLeftRadius: "8px",
+    borderBottomLeftRadius: "8px",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "rgba(196, 167, 104, 0.12)",
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor: "rgba(196, 167, 104, 0.18)",
+  },
+  ".cm-focused": {
+    outline: "none",
+  },
+  "&.cm-focused": {
+    borderColor: "#b08b47",
+    boxShadow: "0 0 0 2px rgba(176, 139, 71, 0.16)",
+  },
+});
 
 function normalizeEditorLanguage(language) {
   if (language === "c") {
@@ -246,3 +292,67 @@ function createProblemCodeEditor(textarea, options = {}) {
 }
 
 window.createProblemCodeEditor = createProblemCodeEditor;
+
+function createSolutionMarkdownEditor(textarea, options = {}) {
+  if (!textarea) {
+    return null;
+  }
+
+  const host = document.createElement("div");
+  host.className = "solution-markdown-editor-host";
+  textarea.insertAdjacentElement("beforebegin", host);
+  textarea.classList.add("is-codemirror-hidden");
+
+  const syncTextarea = EditorView.updateListener.of((update) => {
+    if (!update.docChanged) return;
+    const value = update.state.doc.toString();
+    textarea.value = value;
+    if (typeof options.onChange === "function") {
+      options.onChange(value);
+    }
+  });
+
+  const view = new EditorView({
+    state: EditorState.create({
+      doc: textarea.value,
+      extensions: [
+        basicSetup,
+        keymap.of([indentWithTab]),
+        markdown(),
+        solutionMarkdownEditorTheme,
+        syncTextarea,
+      ],
+    }),
+    parent: host,
+  });
+
+  return {
+    focus() {
+      view.focus();
+    },
+    getValue() {
+      return view.state.doc.toString();
+    },
+    setValue(value) {
+      const next = value ?? "";
+      textarea.value = next;
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: next,
+        },
+      });
+      if (typeof options.onChange === "function") {
+        options.onChange(next);
+      }
+    },
+    destroy() {
+      view.destroy();
+      host.remove();
+      textarea.classList.remove("is-codemirror-hidden");
+    },
+  };
+}
+
+window.createSolutionMarkdownEditor = createSolutionMarkdownEditor;

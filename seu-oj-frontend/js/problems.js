@@ -433,6 +433,11 @@ function renderProblemCodeBlock(title, content) {
 }
 function renderProblemSolutions(solutions, problemID) {
   const list = solutions || [];
+  const manageButton = state.user?.role === "admin"
+    ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage All Solutions</a>`
+    : state.user
+      ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage My Solution</a>`
+      : "";
   return `
     <div class="detail-block">
       <div class="view-header compact">
@@ -440,7 +445,7 @@ function renderProblemSolutions(solutions, problemID) {
           <h3>Solutions</h3>
           <p class="view-subtitle">Editorial notes and official write-ups for this problem.</p>
         </div>
-        ${state.user ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage Solutions</a>` : ""}
+        ${manageButton}
       </div>
       ${list.length ? `
         <div class="solution-stack">
