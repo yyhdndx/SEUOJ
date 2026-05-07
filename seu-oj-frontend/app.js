@@ -495,15 +495,15 @@ async function renderHome() {
   if (state.token) {
     try {
       const [submissionsData, myStatsData, adminStatsData] = await Promise.all([
-        apiFetch("/submissions/my?page=1&page_size=5", { method: "GET" }),
+        apiFetch("/submissions/my?page=1&page_size=50", { method: "GET" }),
         apiFetch("/stats/me", { method: "GET" }).catch(() => null),
         state.user?.role === "admin" ? apiFetch("/stats/admin", { method: "GET" }).catch(() => null) : Promise.resolve(null),
       ]);
-      latestSubmissions = submissionsData.list || [];
+      latestSubmissions = (submissionsData.list || []).slice(0, 5);
       myStats = myStatsData;
       adminStats = adminStatsData;
-      latestSubmission = latestSubmissions[0] || null;
-      latestAcceptedSubmission = latestSubmissions.find((item) => item.status === "Accepted") || null;
+      latestSubmission = submissionsData.list?.[0] || null;
+      latestAcceptedSubmission = (submissionsData.list || []).find((item) => item.status === "Accepted") || null;
       if (latestSubmission) {
         latestSubmissionDetail = await apiFetch(`/submissions/${latestSubmission.id}`, { method: "GET" });
       }
@@ -545,7 +545,6 @@ async function renderHome() {
       <div class="view-header">
         <div>
           <h3>Quick Actions</h3>
-          <p class="view-subtitle">Role-focused entry points for the work you are most likely to do now.</p>
         </div>
       </div>
       <div class="dashboard-action-grid">
@@ -564,7 +563,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>Continue Work</h3>
-            <p class="view-subtitle">Latest verdict, failure reason, and resume action in one place.</p>
           </div>
           ${latestSubmission ? `<a class="ghost-button" href="#/submissions/${latestSubmission.id}">Open Detail</a>` : ""}
         </div>
@@ -574,7 +572,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>Recent Activity</h3>
-            <p class="view-subtitle">Recent submissions are summarized here instead of repeated across cards.</p>
           </div>
           <a class="ghost-button" href="#/submissions">All Submissions</a>
         </div>
@@ -587,7 +584,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>${showTeachingSnapshot ? "Teaching Snapshot" : "Problem Snapshot"}</h3>
-            <p class="view-subtitle">${showTeachingSnapshot ? "Teaching shortcuts stay visible without overwhelming student workflow." : "A compact way back into the problem set."}</p>
           </div>
           <a class="ghost-button" href="${showTeachingSnapshot ? "#/teacher/classes" : "#/problems"}">${showTeachingSnapshot ? "Teacher Console" : "All Problems"}</a>
         </div>
@@ -597,7 +593,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>Contest Snapshot</h3>
-            <p class="view-subtitle">Only the nearest contest context is promoted here.</p>
           </div>
           <a class="ghost-button" href="#/contests">All Contests</a>
         </div>
@@ -610,7 +605,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>System Snapshot</h3>
-            <p class="view-subtitle">Secondary numbers stay below the main workflow.</p>
           </div>
         </div>
         <div class="verdict-summary-grid">
@@ -626,7 +620,6 @@ async function renderHome() {
         <div class="view-header">
           <div>
             <h3>Updates</h3>
-            <p class="view-subtitle">Announcements and forum are kept as lightweight pointers.</p>
           </div>
           <div class="pill-row">
             <a class="ghost-button" href="#/announcements">Announcements</a>
@@ -697,7 +690,7 @@ function getHomePrimaryAction(latestSubmission) {
     return { label: "Login or Register", href: "#/auth", hint: "Sign in to submit code and see your recent activity." };
   }
   if (latestSubmission) {
-    return { label: isSubmissionPollingStatus(latestSubmission.status) ? "Track Latest Verdict" : "Continue Last Work", href: "#/submissions", id: "hero-continue-work-btn", hint: `Submission #${latestSubmission.id} is your freshest context.` };
+    return { label: isSubmissionPollingStatus(latestSubmission.status) ? "Track Latest Verdict" : "Continue Last Work", href: getLatestSubmissionActionHref(latestSubmission), id: "hero-continue-work-btn", hint: `Submission #${latestSubmission.id} is your freshest context.` };
   }
   if (state.user?.role === "admin") {
     return { label: "Manage Problems", href: "#/admin/problems", hint: "Start from the highest-impact admin workspace." };
@@ -736,11 +729,19 @@ function getHomeQuickActions(role, latestSubmission) {
   }
 
   return [
-    { label: "Practice", title: latestSubmission ? "Continue Work" : "Browse Problems", hint: latestSubmission ? "Return to your most recent submission context." : "Find the next problem to solve.", href: latestSubmission ? "#/submissions" : "#/problems", primary: true },
+    { label: "Practice", title: latestSubmission ? "Continue Work" : "Browse Problems", hint: latestSubmission ? "Return to your most recent submission context." : "Find the next problem to solve.", href: latestSubmission ? getLatestSubmissionActionHref(latestSubmission) : "#/problems", primary: true },
     { label: "Verdicts", title: "My Submissions", hint: "Check judge feedback and reuse code.", href: "#/submissions" },
     { label: "Events", title: "Contests", hint: "Join or practice contest problem sets.", href: "#/contests" },
     { label: "Learning", title: "Classes", hint: "Open assigned playlists and homework.", href: "#/classes" },
   ];
+}
+
+function getLatestSubmissionActionHref(submission) {
+  if (!submission) {
+    return "#/submissions";
+  }
+  const suffix = isSubmissionPollingStatus(submission.status) ? "" : "?reuse=1";
+  return `#/submissions/${submission.id}${suffix}`;
 }
 
 function renderHomeContinueWork(latestSubmission, latestSubmissionDetail, latestAcceptedSubmission) {
@@ -767,8 +768,10 @@ function renderHomeContinueWork(latestSubmission, latestSubmissionDetail, latest
       <div class="verdict-stats">
         <div class="verdict-stat"><span class="verdict-stat-label">Passed</span><span class="verdict-stat-value">${latestSubmission.passed_count}/${latestSubmission.total_count}</span></div>
         <div class="verdict-stat"><span class="verdict-stat-label">Runtime</span><span class="verdict-stat-value">${latestSubmission.runtime_ms ?? "-"} ms</span></div>
-        <div class="verdict-stat"><span class="verdict-stat-label">Created</span><span class="verdict-stat-value mono">${escapeHTML(latestSubmission.created_at)}</span></div>
-        <div class="verdict-stat"><span class="verdict-stat-label">Action</span><span class="verdict-stat-value">${renderHomeActionForLatestSubmission(latestSubmission)}</span></div>
+        <div class="verdict-stat"><span class="verdict-stat-label">Created</span><span class="verdict-stat-value mono" title="${escapeHTML(latestSubmission.created_at || "")}">${escapeHTML(formatDashboardTime(latestSubmission.created_at))}</span></div>
+      </div>
+      <div class="dashboard-verdict-actions">
+        ${renderHomeActionForLatestSubmission(latestSubmission)}
       </div>
     </div>
     ${latestAcceptedSubmission ? `
@@ -791,15 +794,39 @@ function renderHomeActivityList(list) {
   return `
     <div class="dashboard-activity-list">
       ${list.map((item) => `
-        <a class="dashboard-activity-row" href="#/submissions/${item.id}">
-          <span class="mono">#${item.id}</span>
-          <span>Problem ${item.problem_id}</span>
+        <div class="dashboard-activity-row">
+          <div class="dashboard-activity-main">
+            <a class="table-link mono" href="#/submissions/${item.id}">#${item.id}</a>
+            <span>Problem ${item.problem_id}</span>
+            <span class="dashboard-activity-meta mono">${item.passed_count}/${item.total_count} &middot; ${escapeHTML(formatDashboardTime(item.created_at))}</span>
+          </div>
           <span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span>
-          <span class="mono">${item.passed_count}/${item.total_count}</span>
-        </a>
+          <a class="ghost-button dashboard-row-action" href="${getLatestSubmissionActionHref(item)}">${isSubmissionPollingStatus(item.status) ? "Track" : "Reuse"}</a>
+        </div>
       `).join("")}
     </div>
   `;
+}
+
+function formatDashboardTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const diffMs = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs >= 0 && diffMs < minute) return "just now";
+  if (diffMs >= 0 && diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
+  if (diffMs >= 0 && diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
+  return date.toLocaleString(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function renderHomeProblemList(problems) {
@@ -812,7 +839,7 @@ function renderHomeProblemList(problems) {
         <a class="dashboard-list-row" href="#/problems/${item.id}">
           <span class="mono">#${item.id}</span>
           <strong>${escapeHTML(item.title)}</strong>
-          <span class="view-subtitle">${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</span>
+          <span class="view-subtitle dashboard-problem-meta">${item.time_limit_ms} ms / ${item.memory_limit_mb} MB</span>
         </a>
       `).join("")}
     </div>

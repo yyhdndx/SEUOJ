@@ -1490,12 +1490,12 @@ function renderContestStatusHint(contest) {
     return `${escapeHTML(contest.start_time)} to ${escapeHTML(contest.end_time)}`;
   }
   if (now < start) {
-    return `starts in ${formatDuration(start - now)} - ${escapeHTML(contest.start_time)}`;
+    return `starts in ${formatDuration(start - now)} · ${escapeHTML(formatContestDate(contest.start_time))}`;
   }
   if (now < end) {
-    return `ends in ${formatDuration(end - now)} - ${escapeHTML(contest.end_time)}`;
+    return `ends in ${formatDuration(end - now)} · ${escapeHTML(formatContestDate(contest.end_time))}`;
   }
-  return `ended - ${escapeHTML(contest.end_time)}`;
+  return `ended · ${escapeHTML(formatContestDate(contest.end_time))}`;
 }
 
 function formatDuration(ms) {
@@ -1506,6 +1506,15 @@ function formatDuration(ms) {
   if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+
+function formatContestDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value || "-";
+  }
+  const pad = (num) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function startContestPolling(contestID, contestStatus) {

@@ -739,6 +739,25 @@ body.auth-page .content {
   border-radius: var(--radius-sm);
 }
 
+.dashboard-verdict .verdict-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-verdict .verdict-stat-value {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-verdict-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.dashboard-verdict-actions .ghost-button {
+  white-space: nowrap;
+}
+
 .dashboard-accepted-strip {
   display: flex;
   gap: 10px;
@@ -778,7 +797,28 @@ body.auth-page .content {
 }
 
 .dashboard-activity-row {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.dashboard-activity-main {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-activity-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dashboard-row-action {
+  justify-self: end;
+  padding: 6px 10px;
+  min-width: 68px;
+  text-align: center;
 }
 
 .dashboard-list-row {
@@ -788,6 +828,11 @@ body.auth-page .content {
 .dashboard-list-row .view-subtitle {
   grid-column: 2;
   margin-top: 0;
+}
+
+.dashboard-list-row .dashboard-problem-meta {
+  grid-column: 1 / -1;
+  padding-left: 0;
 }
 
 .dashboard-activity-row:hover,
