@@ -187,6 +187,9 @@ async function renderSubmissionDetail(id) {
     const detail = await fetchSubmissionDetail(id);
     renderSubmissionDetailView(detail);
     syncSubmissionPolling(id, detail.status);
+    if (getHashQueryParams().get("reuse") === "1" && !isSubmissionPollingStatus(detail.status)) {
+      reuseSubmissionCode(detail);
+    }
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load submission failed: ${escapeHTML(err.message)}</p></div>`;
   }
@@ -306,11 +309,7 @@ function renderSubmissionDetailView(detail) {
     </section>
   `;
 
-  document.getElementById("reuse-code-btn").addEventListener("click", () => {
-    saveSubmissionDraft(detail.problem_id, detail.language, detail.code || "");
-    setFlash(`Draft saved from submission #${detail.id}`, false);
-    location.hash = detail.contest_id ? `#/contests/${detail.contest_id}/problems/${detail.problem_id}` : `#/problems/${detail.problem_id}`;
-  });
+  document.getElementById("reuse-code-btn").addEventListener("click", () => reuseSubmissionCode(detail));
 }
 
 function renderSummaryCard(label, value, pillClass) {
@@ -328,17 +327,13 @@ function renderHomeActionForLatestSubmission(submission) {
 }
 
 function handleContinueLatestSubmission(submission) {
-  if (isSubmissionPollingStatus(submission.status)) {
-    location.hash = `#/submissions/${submission.id}`;
-    return;
-  }
-  location.hash = `#/submissions/${submission.id}`;
-  setTimeout(() => {
-    const btn = document.getElementById("reuse-code-btn");
-    if (btn) {
-      btn.click();
-    }
-  }, 120);
+  location.hash = getLatestSubmissionActionHref(submission);
+}
+
+function reuseSubmissionCode(detail) {
+  saveSubmissionDraft(detail.problem_id, detail.language, detail.code || "");
+  setFlash(`Draft saved from submission #${detail.id}`, false);
+  location.hash = detail.contest_id ? `#/contests/${detail.contest_id}/problems/${detail.problem_id}` : `#/problems/${detail.problem_id}`;
 }
 
 function renderLatestFailureSummary(submission, submissionDetail) {
