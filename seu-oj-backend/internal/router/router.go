@@ -98,8 +98,8 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 
 	forumGroup := apiGroup.Group("/forum")
 	{
-		forumGroup.GET("/topics", forumHandler.ListTopics)
-		forumGroup.GET("/topics/:id", forumHandler.TopicDetail)
+		forumGroup.GET("/topics", middleware.OptionalJWTAuth(cfg.Auth.JWTSecret), forumHandler.ListTopics)
+		forumGroup.GET("/topics/:id", middleware.OptionalJWTAuth(cfg.Auth.JWTSecret), forumHandler.TopicDetail)
 	}
 
 	contestGroup := apiGroup.Group("/contests")
@@ -118,7 +118,7 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	playlistGroup := apiGroup.Group("/playlists")
 	{
 		playlistGroup.GET("", teachingHandler.ListPlaylists)
-		playlistGroup.GET("/:id", teachingHandler.PlaylistDetail)
+		playlistGroup.GET("/:id", middleware.OptionalJWTAuth(cfg.Auth.JWTSecret), teachingHandler.PlaylistDetail)
 	}
 
 	classGroup := apiGroup.Group("/classes")
@@ -161,6 +161,10 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 		forumAuthGroup.POST("/topics/:id/replies", forumHandler.CreateReply)
 		forumAuthGroup.PUT("/replies/:id", forumHandler.UpdateReply)
 		forumAuthGroup.DELETE("/replies/:id", forumHandler.DeleteReply)
+		forumAuthGroup.POST("/topics/:id/like", forumHandler.LikeTopic)
+		forumAuthGroup.DELETE("/topics/:id/like", forumHandler.UnlikeTopic)
+		forumAuthGroup.POST("/topics/:id/favorite", forumHandler.FavoriteTopic)
+		forumAuthGroup.DELETE("/topics/:id/favorite", forumHandler.UnfavoriteTopic)
 	}
 
 	submissionGroup := apiGroup.Group("/submissions")

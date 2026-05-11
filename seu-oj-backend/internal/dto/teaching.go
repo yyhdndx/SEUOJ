@@ -27,11 +27,26 @@ type PlaylistListQuery struct {
 	Keyword  string `form:"keyword"`
 }
 
+type PlaylistProgress struct {
+	ProblemCount         int     `json:"problem_count"`
+	SolvedCount          int     `json:"solved_count"`
+	AttemptedCount       int     `json:"attempted_count"`
+	ProgressPercent      int     `json:"progress_percent"`
+	NextProblemID        *uint64 `json:"next_problem_id,omitempty"`
+	NextProblemDisplayID string  `json:"next_problem_display_id,omitempty"`
+}
+
 type PlaylistProblemItem struct {
-	ProblemID    uint64 `json:"problem_id"`
-	DisplayOrder int    `json:"display_order"`
-	DisplayID    string `json:"display_id"`
-	Title        string `json:"title"`
+	ProblemID            uint64     `json:"problem_id"`
+	DisplayOrder         int        `json:"display_order"`
+	DisplayID            string     `json:"display_id"`
+	Title                string     `json:"title"`
+	Difficulty           string     `json:"difficulty"`
+	Status               string     `json:"status"`
+	LastSubmissionID     *uint64    `json:"last_submission_id,omitempty"`
+	LastSubmissionStatus string     `json:"last_submission_status,omitempty"`
+	LastSubmittedAt      *time.Time `json:"last_submitted_at,omitempty"`
+	AcceptedAt           *time.Time `json:"accepted_at,omitempty"`
 }
 
 type PlaylistListItem struct {
@@ -52,6 +67,7 @@ type PlaylistDetailResponse struct {
 	CreatedBy   uint64                `json:"created_by"`
 	CreatedAt   time.Time             `json:"created_at"`
 	UpdatedAt   time.Time             `json:"updated_at"`
+	Progress    *PlaylistProgress     `json:"progress,omitempty"`
 	Problems    []PlaylistProblemItem `json:"problems"`
 }
 

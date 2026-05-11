@@ -1,4 +1,4 @@
-﻿// Teaching domain pages and helpers
+// Teaching domain pages and helpers
 function isTeacherUser() {
   return !!state.user && (state.user.role === "teacher" || state.user.role === "admin");
 }
@@ -20,6 +20,283 @@ function parseProblemIDs(text) {
     .split(/[\s,]+/)
     .map((item) => Number(item.trim()))
     .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+function validatePlaylistProblemIdsInput(text) {
+  const raw = String(text || "").trim();
+  if (!raw) {
+    return { ok: false, message: "请至少填写一个题目 ID（数据库主键 problem_id，纯数字）", ids: [] };
+  }
+  const parts = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  const ids = [];
+  const seen = new Set();
+  for (const p of parts) {
+    if (!/^\d+$/.test(p)) {
+      return { ok: false, message: `题目 ID「${p}」不是正整数，请填写数据库中的 problem_id`, ids: [] };
+    }
+    const n = Number(p);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      return { ok: false, message: `题目 ID「${p}」无效`, ids: [] };
+    }
+    if (seen.has(n)) {
+      return { ok: false, message: `题目 ID ${n} 重复`, ids: [] };
+    }
+    seen.add(n);
+    ids.push(n);
+  }
+  return { ok: true, ids };
+}
+
+function teachingProblemPickerLabel(item) {
+  const difficultyValue = Number(item?.difficulty);
+  let diff = "未知";
+  if (difficultyValue === 1) diff = "简单";
+  else if (difficultyValue === 2) diff = "中等";
+  else if (difficultyValue === 3) diff = "困难";
+  return `#${item.id} · ${escapeHTML(item.display_id || "-")} · ${diff} · ${escapeHTML(item.title || "")}`;
+}
+
+function renderPlaylistDifficulty(difficulty) {
+  const d = String(difficulty || "unknown").toLowerCase();
+  if (d === "easy") return `<span class="playlist-diff-pill playlist-diff-easy">简单</span>`;
+  if (d === "medium") return `<span class="playlist-diff-pill playlist-diff-medium">中等</span>`;
+  if (d === "hard") return `<span class="playlist-diff-pill playlist-diff-hard">困难</span>`;
+  return `<span class="playlist-diff-pill playlist-diff-unknown">未知</span>`;
+}
+
+function renderPlaylistProblemStatus(status) {
+  const s = String(status || "not_started");
+  if (s === "accepted") return `<span class="status-pill status-accepted">已通过</span>`;
+  if (s === "attempted") return `<span class="status-pill status-pending">已尝试</span>`;
+  return `<span class="status-pill status-neutral">未开始</span>`;
+}
+
+function getPlaylistContinueHref(detail) {
+  const probs = detail.problems || [];
+  if (!probs.length) return "#/playlists";
+  const pid = detail.progress?.next_problem_id ?? probs[0].problem_id;
+  return `#/problems/${pid}`;
+}
+
+function getPlaylistContinueLabel(detail) {
+  const probs = detail.problems || [];
+  if (!probs.length) return "暂无题目";
+  const total = probs.length;
+  const solved = Number(detail.progress?.solved_count ?? 0);
+  if (solved >= total) return "复习题单";
+  return "继续练习";
+}
+
+function formatPlaylistDateTime(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return escapeHTML(String(value));
+  return escapeHTML(d.toLocaleString());
+}
+
+function playlistDifficultySortKey(diff) {
+  const d = String(diff || "unknown").toLowerCase();
+  if (d === "easy") return 1;
+  if (d === "medium") return 2;
+  if (d === "hard") return 3;
+  return 999;
+}
+
+function playlistStatusSortKey(status) {
+  const s = String(status || "not_started");
+  if (s === "accepted") return 1;
+  if (s === "attempted") return 2;
+  return 3;
+}
+
+function playlistDisplaySortNum(item) {
+  const raw = String(item?.display_id || "").trim();
+  const n = parseInt(raw.replace(/\D/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function sortPlaylistProblems(items, sortKey, asc) {
+  const arr = [...items];
+  const sign = asc ? 1 : -1;
+  arr.sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "display") {
+      cmp = playlistDisplaySortNum(a) - playlistDisplaySortNum(b);
+      if (cmp === 0) cmp = String(a.display_id || "").localeCompare(String(b.display_id || ""));
+      if (cmp === 0) cmp = (Number(a.problem_id) || 0) - (Number(b.problem_id) || 0);
+      return sign * cmp;
+    }
+    if (sortKey === "difficulty") {
+      const ar = playlistDifficultySortKey(a.difficulty);
+      const br = playlistDifficultySortKey(b.difficulty);
+      const au = ar >= 999;
+      const bu = br >= 999;
+      if (au && bu) cmp = 0;
+      else if (au) cmp = 1;
+      else if (bu) cmp = -1;
+      else cmp = asc ? ar - br : br - ar;
+      if (cmp === 0) cmp = playlistDisplaySortNum(a) - playlistDisplaySortNum(b);
+      if (cmp === 0) cmp = (Number(a.problem_id) || 0) - (Number(b.problem_id) || 0);
+      return cmp;
+    }
+    if (sortKey === "status") {
+      cmp = playlistStatusSortKey(a.status) - playlistStatusSortKey(b.status);
+      if (cmp === 0) cmp = playlistDisplaySortNum(a) - playlistDisplaySortNum(b);
+      if (cmp === 0) cmp = (Number(a.problem_id) || 0) - (Number(b.problem_id) || 0);
+      return sign * cmp;
+    }
+    return 0;
+  });
+  return arr;
+}
+
+function filterPlaylistProblemsByStat(problems, filter) {
+  if (!filter) return problems;
+  return problems.filter((p) => String(p.status || "not_started") === filter);
+}
+
+function buildPlaylistProblemRowsHtml(items) {
+  return items
+    .map((item) => {
+      const st = String(item.status || "not_started");
+      const rowClass =
+        st === "accepted" ? "playlist-problem-row playlist-problem-row--accepted" : st === "attempted" ? "playlist-problem-row playlist-problem-row--attempted" : "playlist-problem-row playlist-problem-row--not-started";
+      const subLink = item.last_submission_id
+        ? `<a class="table-link" href="#/submissions/${item.last_submission_id}">${escapeHTML(item.last_submission_status || "—")}</a>`
+        : escapeHTML("—");
+      const actLabel = item.status === "accepted" ? "复习" : "做题";
+      return `
+        <tr class="${rowClass}">
+          <td>${item.display_order}</td>
+          <td class="mono">${escapeHTML(item.display_id || "-")}</td>
+          <td><a class="table-link" href="#/problems/${item.problem_id}">${escapeHTML(item.title)}</a></td>
+          <td>${renderPlaylistDifficulty(item.difficulty)}</td>
+          <td>${renderPlaylistProblemStatus(item.status)}</td>
+          <td class="playlist-sub-cell">
+            <div>${subLink}</div>
+            <div class="view-subtitle">${formatPlaylistDateTime(item.last_submitted_at)}</div>
+          </td>
+          <td><a class="ghost-button table-action-btn" href="#/problems/${item.problem_id}">${escapeHTML(actLabel)}</a></td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function renderPlaylistSortTh(label, colKey, sortKey, sortAsc) {
+  const ascOn = sortKey === colKey && sortAsc;
+  const descOn = sortKey === colKey && !sortAsc;
+  return `
+    <th class="playlist-sort-th">
+      <span class="playlist-sort-th-label">${escapeHTML(label)}</span>
+      <span class="playlist-sort-arrows" role="group" aria-label="排序">
+        <button type="button" class="playlist-sort-btn${ascOn ? " is-active" : ""}" data-playlist-sort="${colKey}" data-playlist-dir="asc" title="正序">▲</button>
+        <button type="button" class="playlist-sort-btn${descOn ? " is-active" : ""}" data-playlist-sort="${colKey}" data-playlist-dir="desc" title="倒序">▼</button>
+      </span>
+    </th>`;
+}
+
+function mountPlaylistDetailInteractions(root, detail) {
+  const probs = detail.problems || [];
+  const progress = detail.progress || {
+    problem_count: probs.length,
+    solved_count: 0,
+    attempted_count: 0,
+    progress_percent: probs.length ? 0 : 0,
+  };
+  const total = Math.max(0, Number(progress.problem_count ?? probs.length));
+  const solved = Math.max(0, Number(progress.solved_count ?? 0));
+  const attempted = Math.max(0, Number(progress.attempted_count ?? 0));
+  const notStarted = Math.max(0, total - solved - attempted);
+
+  const ui = { filter: null, sortKey: "display", sortAsc: true, tab: "problems" };
+
+  const getFilteredSorted = () => {
+    let list = filterPlaylistProblemsByStat(probs, ui.filter);
+    list = sortPlaylistProblems(list, ui.sortKey, ui.sortAsc);
+    return list;
+  };
+
+  const syncSortHeaderUi = () => {
+    root.querySelectorAll("[data-playlist-sort]").forEach((btn) => {
+      const key = btn.getAttribute("data-playlist-sort");
+      const dir = btn.getAttribute("data-playlist-dir");
+      const on = ui.sortKey === key && (dir === "asc" ? ui.sortAsc : !ui.sortAsc);
+      btn.classList.toggle("is-active", on);
+    });
+  };
+
+  const syncStatFilterUi = () => {
+    root.querySelectorAll("[data-playlist-stat-filter]").forEach((btn) => {
+      const f = btn.getAttribute("data-playlist-stat-filter");
+      btn.classList.toggle("is-active", ui.filter === f);
+    });
+  };
+
+  const syncTabUi = () => {
+    root.querySelectorAll("[data-playlist-tab]").forEach((btn) => {
+      const t = btn.getAttribute("data-playlist-tab");
+      btn.classList.toggle("is-active", t === ui.tab);
+      btn.setAttribute("aria-selected", t === ui.tab ? "true" : "false");
+    });
+    root.querySelectorAll("[data-playlist-tab-panel]").forEach((panel) => {
+      const t = panel.getAttribute("data-playlist-tab-panel");
+      panel.classList.toggle("hidden", t !== ui.tab);
+    });
+  };
+
+  const repaintProblemTable = () => {
+    const tbody = root.querySelector("[data-playlist-problem-tbody]");
+    const emptyEl = root.querySelector("[data-playlist-problem-empty]");
+    if (!tbody) return;
+    const list = getFilteredSorted();
+    tbody.innerHTML = buildPlaylistProblemRowsHtml(list);
+    if (emptyEl) {
+      emptyEl.classList.toggle("hidden", list.length > 0);
+    }
+    syncSortHeaderUi();
+    syncStatFilterUi();
+  };
+
+  root.addEventListener("click", (event) => {
+    const t = event.target;
+    if (!(t instanceof HTMLElement)) return;
+
+    const tabBtn = t.closest("[data-playlist-tab]");
+    if (tabBtn) {
+      const name = tabBtn.getAttribute("data-playlist-tab");
+      if (name && name !== ui.tab) {
+        ui.tab = name;
+        syncTabUi();
+      }
+      return;
+    }
+
+    const statBtn = t.closest("[data-playlist-stat-filter]");
+    if (statBtn) {
+      const f = statBtn.getAttribute("data-playlist-stat-filter");
+      if (!f) return;
+      ui.filter = ui.filter === f ? null : f;
+      repaintProblemTable();
+      return;
+    }
+
+    const sortBtn = t.closest("[data-playlist-sort]");
+    if (sortBtn) {
+      const key = sortBtn.getAttribute("data-playlist-sort");
+      const dir = sortBtn.getAttribute("data-playlist-dir");
+      if (!key || (dir !== "asc" && dir !== "desc")) return;
+      const asc = dir === "asc";
+      if (ui.sortKey === key && ui.sortAsc === asc) {
+        return;
+      }
+      ui.sortKey = key;
+      ui.sortAsc = asc;
+      repaintProblemTable();
+    }
+  });
+
+  syncTabUi();
+  repaintProblemTable();
 }
 function teachingVisibilityClass(visibility) {
   if (visibility === "public") return "status-accepted";
@@ -128,47 +405,117 @@ async function renderPlaylistDetail(id) {
   app.innerHTML = `<div class="detail-card"><p>Loading playlist...</p></div>`;
   try {
     const detail = await apiFetch(`/playlists/${id}`, { method: "GET" });
+    const probs = detail.problems || [];
+    const progress = detail.progress || {
+      problem_count: probs.length,
+      solved_count: 0,
+      attempted_count: 0,
+      progress_percent: probs.length ? 0 : 0,
+      next_problem_id: probs[0]?.problem_id,
+      next_problem_display_id: probs[0]?.display_id,
+    };
+    const pct = Math.max(0, Math.min(100, Number(progress.progress_percent ?? 0)));
+    const loggedIn = !!state.token;
+    const continueHref = getPlaylistContinueHref(detail);
+    const continueLabel = getPlaylistContinueLabel(detail);
+    const total = Math.max(0, Number(progress.problem_count ?? probs.length));
+    const solved = Math.max(0, Number(progress.solved_count ?? 0));
+    const attempted = Math.max(0, Number(progress.attempted_count ?? 0));
+    const notStarted = Math.max(0, total - solved - attempted);
+    const sortKey = "display";
+    const sortAsc = true;
+    const theadSort = `
+      <tr>
+        <th>#</th>
+        ${renderPlaylistSortTh("DISPLAY", "display", sortKey, sortAsc)}
+        <th>标题</th>
+        ${renderPlaylistSortTh("难度", "difficulty", sortKey, sortAsc)}
+        ${renderPlaylistSortTh("状态", "status", sortKey, sortAsc)}
+        <th>最近提交</th>
+        <th>操作</th>
+      </tr>`;
+    const initialRows = buildPlaylistProblemRowsHtml(sortPlaylistProblems(probs, sortKey, sortAsc));
     app.innerHTML = `
       <div class="view-header">
         <div>
           <h1 class="view-title">${escapeHTML(detail.title)}</h1>
-          <p class="view-subtitle">Reusable set for training, homework, and exam assembly.</p>
+          <p class="view-subtitle">题单训练工作台</p>
         </div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
           <span class="status-pill ${teachingVisibilityClass(detail.visibility)}">${escapeHTML(detail.visibility)}</span>
-          <a class="ghost-button" href="#/playlists">Back</a>
+          <a class="ghost-button" href="#/playlists">返回列表</a>
         </div>
       </div>
-      ${renderTeachingMetaList([
-        { label: 'Problems', value: String((detail.problems || []).length) },
-        { label: 'Created By', value: String(detail.created_by) },
-        { label: 'Created', value: detail.created_at, mono: true },
-        { label: 'Updated', value: detail.updated_at, mono: true },
-      ])}
-      <section class="detail-grid" style="margin-top:18px;">
-        <article class="detail-card">
-          <h3>Description</h3>
-          ${renderMarkdownBlock(detail.description || "No description.")}
-        </article>
-        <aside class="detail-card">
-          <h3>Problems</h3>
-          ${(detail.problems || []).length ? `
-            <table class="data-table">
-              <thead><tr><th>#</th><th>Display</th><th>Title</th></tr></thead>
-              <tbody>
-                ${(detail.problems || []).map((item) => `
-                  <tr>
-                    <td>${item.display_order}</td>
-                    <td class="mono">${escapeHTML(item.display_id || "-")}</td>
-                    <td><a class="table-link" href="#/problems/${item.problem_id}">${escapeHTML(item.title)}</a></td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          ` : renderTeachingEmpty('No problems in this playlist.')}
-        </aside>
+      <section id="playlist-detail-root" class="playlist-detail-root detail-card">
+        <div class="playlist-detail-top">
+          <div class="playlist-detail-progress-col">
+            <div class="playlist-progress-title-row">
+              <h2 class="playlist-progress-heading">训练进度</h2>
+              <span class="playlist-progress-pct" title="完成度">${pct}%</span>
+            </div>
+            <div class="playlist-progress-bar-wrap playlist-progress-bar-wrap--segmented" aria-label="完成进度">
+              <div class="playlist-progress-seg playlist-progress-seg--done" style="width:${total ? (solved / total) * 100 : 0}%"></div>
+              <div class="playlist-progress-seg playlist-progress-seg--try" style="width:${total ? (attempted / total) * 100 : 0}%"></div>
+              <div class="playlist-progress-seg playlist-progress-seg--todo" style="width:${total ? (notStarted / total) * 100 : 0}%"></div>
+            </div>
+            <div class="playlist-stat-chips" role="group" aria-label="进度分项，点击筛选题目">
+              <button type="button" class="playlist-stat-chip playlist-stat-chip--green" data-playlist-stat-filter="accepted" title="点击仅看已通过；再点取消">
+                <span class="playlist-stat-chip-label">已通过 / 总题数</span>
+                <span class="playlist-stat-chip-value">${solved}<span class="playlist-stat-chip-slash">/</span>${total}</span>
+              </button>
+              <button type="button" class="playlist-stat-chip playlist-stat-chip--yellow" data-playlist-stat-filter="attempted" title="点击仅看已尝试（未 AC）；再点取消">
+                <span class="playlist-stat-chip-label">已尝试（未 AC）/ 总题数</span>
+                <span class="playlist-stat-chip-value">${attempted}<span class="playlist-stat-chip-slash">/</span>${total}</span>
+              </button>
+              <button type="button" class="playlist-stat-chip playlist-stat-chip--red" data-playlist-stat-filter="not_started" title="点击仅看未完成；再点取消">
+                <span class="playlist-stat-chip-label">未完成 / 总题数</span>
+                <span class="playlist-stat-chip-value">${notStarted}<span class="playlist-stat-chip-slash">/</span>${total}</span>
+              </button>
+            </div>
+            ${loggedIn ? "" : `<p class="playlist-login-hint">登录后可查看个人进度与各题提交状态</p>`}
+            <div class="playlist-continue-row">
+              <a class="primary-button" href="${continueHref}">${escapeHTML(continueLabel)}</a>
+              ${probs.length && progress.next_problem_display_id ? `<span class="view-subtitle mono">下一题：${escapeHTML(String(progress.next_problem_display_id))}</span>` : ""}
+            </div>
+          </div>
+          <aside class="playlist-detail-meta-col">
+            <div class="playlist-meta-title">创建信息</div>
+            <div class="playlist-meta-line"><span class="playlist-meta-k">创建者 ID</span><span class="playlist-meta-v mono">${escapeHTML(String(detail.created_by))}</span></div>
+            <div class="playlist-meta-line"><span class="playlist-meta-k">创建时间</span><span class="playlist-meta-v mono">${formatPlaylistDateTime(detail.created_at)}</span></div>
+            <div class="playlist-meta-line"><span class="playlist-meta-k">更新时间</span><span class="playlist-meta-v mono">${formatPlaylistDateTime(detail.updated_at)}</span></div>
+          </aside>
+        </div>
+        <section class="playlist-detail-workspace">
+          <div class="playlist-detail-tablist" role="tablist" aria-label="题单分区">
+            <button type="button" class="playlist-detail-tab" role="tab" data-playlist-tab="desc" aria-selected="false">题单说明</button>
+            <button type="button" class="playlist-detail-tab is-active" role="tab" data-playlist-tab="problems" aria-selected="true">题目列表</button>
+          </div>
+          <div class="playlist-detail-tab-panel hidden" data-playlist-tab-panel="desc" role="tabpanel">
+            ${renderMarkdownBlock(detail.description || "暂无描述。")}
+          </div>
+          <div class="playlist-detail-tab-panel" data-playlist-tab-panel="problems" role="tabpanel">
+            ${
+              probs.length
+                ? `
+            <p class="playlist-filter-hint">点击上方绿 / 黄 / 红统计可筛选题目；表头三角为排序（与洛谷类似）。</p>
+            <div class="playlist-table-scroll">
+              <table class="data-table playlist-problem-table">
+                <thead>${theadSort}</thead>
+                <tbody data-playlist-problem-tbody>${initialRows}</tbody>
+              </table>
+            </div>
+            <div class="playlist-empty-filter hidden" data-playlist-problem-empty>当前筛选下没有题目。</div>
+            `
+                : renderTeachingEmpty("本题单暂无题目。")
+            }
+          </div>
+        </section>
       </section>
     `;
+    const root = document.getElementById("playlist-detail-root");
+    if (root) {
+      mountPlaylistDetailInteractions(root, detail);
+    }
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load playlist failed: ${escapeHTML(err.message)}</p></div>`;
   }
@@ -482,9 +829,9 @@ async function renderTeacherPlaylists() {
             </select>
             <label class="field-label">Description</label>
             <textarea class="text-area" name="description" rows="6"></textarea>
-            <label class="field-label">Problem IDs (ordered, split by comma or space)</label>
-            <input class="text-input" name="problem_ids" placeholder="3, 4, 5" required />
-            <div class="view-subtitle" style="margin-top:8px;">Available problems: ${(problems.list || []).map((item) => `#${item.id} ${escapeHTML(item.title)}`).join(' / ')}</div>
+            <label class="field-label">题目 ID（顺序，逗号或空格分隔）</label>
+            <input class="text-input" name="problem_ids" placeholder="数据库 problem_id，例如：3 4 5（非题目显示号 display_id）" required />
+            <div class="view-subtitle" style="margin-top:8px;">可选题目参考：${(problems.list || []).map((item) => teachingProblemPickerLabel(item)).join(" · ")}</div>
             <div style="margin-top:14px;"><button class="primary-button" type="submit">Create Playlist</button></div>
           </form>
         </article>
@@ -521,7 +868,12 @@ async function renderTeacherPlaylists() {
     document.getElementById('teacher-playlist-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const ids = parseProblemIDs(form.get('problem_ids'));
+      const checked = validatePlaylistProblemIdsInput(form.get('problem_ids'));
+      if (!checked.ok) {
+        setFlash(checked.message, true);
+        return;
+      }
+      const ids = checked.ids;
       try {
         await apiFetch('/teacher/playlists', {
           method: 'POST',
@@ -583,9 +935,9 @@ async function renderTeacherPlaylistDetail(id) {
             </select>
             <label class="field-label">Description</label>
             <textarea class="text-area" name="description" rows="8">${escapeHTML(detail.description || '')}</textarea>
-            <label class="field-label">Problem IDs (ordered)</label>
-            <input class="text-input" name="problem_ids" value="${escapeHTML(problemIDs)}" required />
-            <div class="view-subtitle" style="margin-top:8px;">Available problems: ${(problems.list || []).map((item) => `#${item.id} ${escapeHTML(item.title)}`).join(' / ')}</div>
+            <label class="field-label">题目 ID（顺序）</label>
+            <input class="text-input" name="problem_ids" value="${escapeHTML(problemIDs)}" placeholder="数据库 problem_id，纯数字" required />
+            <div class="view-subtitle" style="margin-top:8px;">可选题目参考：${(problems.list || []).map((item) => teachingProblemPickerLabel(item)).join(" · ")}</div>
             <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
               <button class="primary-button" type="submit">Save Playlist</button>
               <a class="ghost-button" href="#/playlists/${detail.id}">Open Public View</a>
@@ -596,12 +948,13 @@ async function renderTeacherPlaylistDetail(id) {
         <aside class="detail-card">
           <h3>Problems</h3>
           <table class="data-table">
-            <thead><tr><th>#</th><th>Display</th><th>Title</th></tr></thead>
+            <thead><tr><th>#</th><th>Display</th><th>难度</th><th>Title</th></tr></thead>
             <tbody>
               ${(detail.problems || []).map((item) => `
                 <tr>
                   <td>${item.display_order}</td>
                   <td class="mono">${escapeHTML(item.display_id || '-')}</td>
+                  <td>${renderPlaylistDifficulty(item.difficulty)}</td>
                   <td><a class="table-link" href="#/problems/${item.problem_id}">${escapeHTML(item.title)}</a></td>
                 </tr>
               `).join('')}
@@ -613,7 +966,12 @@ async function renderTeacherPlaylistDetail(id) {
     document.getElementById('teacher-playlist-edit-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const ids = parseProblemIDs(form.get('problem_ids'));
+      const checked = validatePlaylistProblemIdsInput(form.get('problem_ids'));
+      if (!checked.ok) {
+        setFlash(checked.message, true);
+        return;
+      }
+      const ids = checked.ids;
       try {
         await apiFetch(`/teacher/playlists/${id}`, {
           method: 'PUT',

@@ -265,6 +265,18 @@ func getContextUserID(c *gin.Context) (uint64, bool) {
 	return userID, true
 }
 
+func getOptionalUserID(c *gin.Context) *uint64 {
+	rawUserID, exists := c.Get(middleware.ContextUserIDKey)
+	if !exists {
+		return nil
+	}
+	userID, ok := rawUserID.(uint64)
+	if !ok || userID == 0 {
+		return nil
+	}
+	return &userID
+}
+
 func getContextRole(c *gin.Context) (string, bool) {
 	rawRole, exists := c.Get(middleware.ContextRoleKey)
 	if !exists {

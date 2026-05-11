@@ -6,7 +6,7 @@
 /* 新的筛选网格：一屏可见 */
 .forum-filter-grid {
   display: grid;
-  grid-template-columns: 1.5fr 0.8fr 0.8fr auto;
+  grid-template-columns: 1.5fr 0.8fr auto;
   gap: 12px;
   align-items: end;
 }
@@ -51,6 +51,17 @@
   background: rgba(255, 253, 250, 0.96);
   padding: 16px 18px;
   border-radius: 10px;
+}
+
+.forum-topic-card {
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.forum-topic-card:hover {
+  border-color: rgba(34, 65, 119, 0.22);
+  box-shadow: 0 4px 16px rgba(39, 28, 6, 0.08);
+  transform: translateY(-1px);
 }
 
 .forum-topic-title {
@@ -110,7 +121,30 @@
 .forum-topic-preview {
   margin: 12px 0 0;
   color: #58472f;
-  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.55;
+  max-height: 7em;
+  overflow: hidden;
+}
+
+.forum-topic-preview p {
+  margin: 0;
+}
+
+.forum-topic-preview p + p {
+  margin-top: 6px;
+}
+
+.forum-topic-preview code {
+  background: rgba(104, 97, 79, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+}
+
+.forum-preview-ellipsis {
+  color: var(--muted);
 }
 
 .forum-topic-footer {
@@ -209,4 +243,135 @@
   .forum-summary-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== Floating Action Button (FAB) ===== */
+.forum-compose-fab {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.forum-compose-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(39, 28, 6, 0.14);
+}
+
+.forum-compose-fab-icon {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 300;
+}
+
+@media (max-width: 720px) {
+  .forum-compose-fab {
+    bottom: 20px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
+  }
+  .forum-compose-fab-icon {
+    font-size: 24px;
+  }
+}
+
+/* ===== Compose Modal Overlay ===== */
+.forum-compose-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: forum-overlay-fadein 150ms ease;
+}
+
+@keyframes forum-overlay-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.forum-compose-modal {
+  background: var(--paper);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: min(560px, calc(100vw - 32px));
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  animation: forum-modal-scalein 180ms ease;
+}
+
+@keyframes forum-modal-scalein {
+  from { transform: scale(0.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.forum-compose-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.forum-compose-modal-close {
+  font-size: 20px;
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+/* ===== Like / Favorite buttons ===== */
+.forum-topic-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.forum-like-btn,
+.forum-fav-btn {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.forum-like-btn:hover,
+.forum-fav-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.forum-like-btn.is-active {
+  border-color: #c0392b;
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.06);
+}
+
+.forum-fav-btn.is-active {
+  border-color: #d4a017;
+  color: #b8860b;
+  background: rgba(212, 160, 23, 0.08);
+}
+
+#forum-detail-like-btn.is-active,
+#forum-detail-fav-btn.is-active {
+  font-weight: 600;
 }

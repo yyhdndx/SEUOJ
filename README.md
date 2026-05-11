@@ -56,6 +56,7 @@ http://127.0.0.1:8080/
 ## 文档索引
 
 - [STORY-001 交付说明（比赛页 / 榜单 UX）](./stories/deliveries/STORY-001-contest-ranklist-ux.md)
+- [STORY-005 交付说明（题单训练进度 / Playlists）](./stories/deliveries/STORY-005-playlist-training-progress.md)
 - [docs/api.md](./docs/api.md)：后端接口文档
 - [docs/current-features.md](./docs/current-features.md)：当前实现功能总览
 - [docs/demo-checklist.md](./docs/demo-checklist.md)：展示前功能检查清单

@@ -1,6 +1,6 @@
 # STORY-005-playlist-training-progress
 
-- Status: `todo`
+- Status: `done`（实现说明见 [STORY-005 交付文档](../deliveries/STORY-005-playlist-training-progress.md)）
 - Priority: `P1`
 - Assignee: `unassigned`
 - Reviewer: `unassigned`
@@ -194,7 +194,7 @@
 建议新增：
 - `seu-oj-backend/database/seed_playlists.sql`
 
-题单数据至少包含 3 个：
+题单数据至少包含 3 个（**实现说明**：仓库内 `seed_playlists.sql` 为兼容 `latin1` 等老库，题单标题与描述使用**固定英文**幂等键，例如 `Demo Basic Syntax Training`、`Demo Loops and Arrays`、`Demo Class Homework Playlist`；语义与下述中文规划一致）：
 - `基础语法训练`：`public`，用于游客和普通用户访问
 - `循环与数组训练`：`public`，用于展示多题训练进度
 - `课堂作业题单示例`：`class`，用于教师端和后续作业绑定场景
