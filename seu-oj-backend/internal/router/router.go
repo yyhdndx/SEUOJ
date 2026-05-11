@@ -118,7 +118,7 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	playlistGroup := apiGroup.Group("/playlists")
 	{
 		playlistGroup.GET("", teachingHandler.ListPlaylists)
-		playlistGroup.GET("/:id", teachingHandler.PlaylistDetail)
+		playlistGroup.GET("/:id", middleware.OptionalJWTAuth(cfg.Auth.JWTSecret), teachingHandler.PlaylistDetail)
 	}
 
 	classGroup := apiGroup.Group("/classes")

@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"seu-oj-backend/internal/dto"
+	"seu-oj-backend/internal/middleware"
 	"seu-oj-backend/internal/response"
 	"seu-oj-backend/internal/service"
 )
@@ -45,7 +46,8 @@ func (h *TeachingHandler) PlaylistDetail(c *gin.Context) {
 		response.Error(c, "invalid playlist id")
 		return
 	}
-	result, err := h.service.GetPlaylistDetail(0, "", id, false)
+	userID, role := optionalPlaylistViewerContext(c)
+	result, err := h.service.GetPlaylistDetail(userID, role, id, false)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrPlaylistNotFound):
@@ -677,4 +679,18 @@ func (h *TeachingHandler) TeacherAssignmentOverview(c *gin.Context) {
 		return
 	}
 	response.OK(c, result)
+}
+
+func optionalPlaylistViewerContext(c *gin.Context) (userID uint64, role string) {
+	if raw, exists := c.Get(middleware.ContextUserIDKey); exists {
+		if id, ok := raw.(uint64); ok {
+			userID = id
+		}
+	}
+	if raw, exists := c.Get(middleware.ContextRoleKey); exists {
+		if r, ok := raw.(string); ok {
+			role = r
+		}
+	}
+	return
 }
