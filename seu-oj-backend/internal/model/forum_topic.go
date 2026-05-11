@@ -12,8 +12,10 @@ type ForumTopic struct {
 	ReplyCount  int        `gorm:"column:reply_count;not null;default:0" json:"reply_count"`
 	IsPinned    bool       `gorm:"column:is_pinned;not null;default:false" json:"is_pinned"`
 	IsLocked    bool       `gorm:"column:is_locked;not null;default:false" json:"is_locked"`
-	LastReplyAt *time.Time `gorm:"column:last_reply_at" json:"last_reply_at"`
-	CreatedAt   time.Time  `gorm:"column:created_at" json:"created_at"`
+	LastReplyAt    *time.Time `gorm:"column:last_reply_at" json:"last_reply_at"`
+	LikeCount      int        `gorm:"column:like_count;not null;default:0" json:"like_count"`
+	FavoriteCount  int        `gorm:"column:favorite_count;not null;default:0" json:"favorite_count"`
+	CreatedAt      time.Time  `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt   time.Time  `gorm:"column:updated_at" json:"updated_at"`
 }
 
