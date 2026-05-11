@@ -57,6 +57,43 @@ func (s *TeachingService) ListPublicPlaylists(page, pageSize int, keyword string
 	return &dto.PlaylistListResponse{List: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
+type playlistProblemRow struct {
+	ProblemID    uint64 `gorm:"column:problem_id"`
+	DisplayOrder int    `gorm:"column:display_order"`
+	DisplayID    string `gorm:"column:display_id"`
+	Title        string `gorm:"column:title"`
+	Difficulty   int    `gorm:"column:difficulty"`
+}
+
+type playlistSubmissionAggRow struct {
+	ID        uint64    `gorm:"column:id"`
+	ProblemID uint64    `gorm:"column:problem_id"`
+	Status    string    `gorm:"column:status"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+type playlistPerProblemSubmissions struct {
+	hasAny       bool
+	hasAccepted  bool
+	lastID       uint64
+	lastStatus   string
+	lastAt       time.Time
+	firstACAt    *time.Time
+}
+
+func problemDifficultyString(d int) string {
+	switch d {
+	case 1:
+		return "easy"
+	case 2:
+		return "medium"
+	case 3:
+		return "hard"
+	default:
+		return "unknown"
+	}
+}
+
 func (s *TeachingService) GetPlaylistDetail(requestUserID uint64, requestRole string, id uint64, teacherView bool) (*dto.PlaylistDetailResponse, error) {
 	var playlist model.Playlist
 	if err := s.db.First(&playlist, id).Error; err != nil {
@@ -71,16 +108,130 @@ func (s *TeachingService) GetPlaylistDetail(requestUserID uint64, requestRole st
 	if teacherView && requestRole != "admin" && playlist.CreatedBy != requestUserID {
 		return nil, ErrTeachingForbidden
 	}
-	var problems []dto.PlaylistProblemItem
+	var rows []playlistProblemRow
 	if err := s.db.Table("playlist_problems pp").
-		Select("pp.problem_id, pp.display_order, p.display_id, p.title").
+		Select("pp.problem_id, pp.display_order, p.display_id, p.title, p.difficulty").
 		Joins("JOIN problems p ON p.id = pp.problem_id").
 		Where("pp.playlist_id = ?", id).
 		Order("pp.display_order ASC, pp.id ASC").
-		Scan(&problems).Error; err != nil {
+		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	return &dto.PlaylistDetailResponse{ID: playlist.ID, Title: playlist.Title, Description: playlist.Description, Visibility: playlist.Visibility, CreatedBy: playlist.CreatedBy, CreatedAt: playlist.CreatedAt, UpdatedAt: playlist.UpdatedAt, Problems: problems}, nil
+	problems := make([]dto.PlaylistProblemItem, 0, len(rows))
+	problemIDs := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		problemIDs = append(problemIDs, row.ProblemID)
+		problems = append(problems, dto.PlaylistProblemItem{
+			ProblemID:    row.ProblemID,
+			DisplayOrder: row.DisplayOrder,
+			DisplayID:    row.DisplayID,
+			Title:        row.Title,
+			Difficulty:   problemDifficultyString(row.Difficulty),
+			Status:       "not_started",
+		})
+	}
+	trackPersonal := requestUserID > 0 && len(problemIDs) > 0
+	if trackPersonal {
+		agg, err := s.loadPlaylistSubmissionAggregates(requestUserID, problemIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range problems {
+			st := agg[problems[i].ProblemID]
+			if !st.hasAny {
+				continue
+			}
+			lid := st.lastID
+			problems[i].LastSubmissionID = &lid
+			problems[i].LastSubmissionStatus = st.lastStatus
+			t := st.lastAt
+			problems[i].LastSubmittedAt = &t
+			if st.hasAccepted {
+				problems[i].Status = "accepted"
+				if st.firstACAt != nil {
+					ac := *st.firstACAt
+					problems[i].AcceptedAt = &ac
+				}
+			} else {
+				problems[i].Status = "attempted"
+			}
+		}
+	}
+	progress := buildPlaylistProgress(problems)
+	return &dto.PlaylistDetailResponse{
+		ID: playlist.ID, Title: playlist.Title, Description: playlist.Description, Visibility: playlist.Visibility,
+		CreatedBy: playlist.CreatedBy, CreatedAt: playlist.CreatedAt, UpdatedAt: playlist.UpdatedAt,
+		Progress: &progress, Problems: problems,
+	}, nil
+}
+
+func (s *TeachingService) loadPlaylistSubmissionAggregates(userID uint64, problemIDs []uint64) (map[uint64]playlistPerProblemSubmissions, error) {
+	out := map[uint64]playlistPerProblemSubmissions{}
+	if userID == 0 || len(problemIDs) == 0 {
+		return out, nil
+	}
+	var scanRows []playlistSubmissionAggRow
+	if err := s.db.Table("submissions").
+		Select("id, problem_id, status, created_at").
+		Where("user_id = ? AND problem_id IN ? AND contest_id IS NULL", userID, problemIDs).
+		Order("created_at ASC, id ASC").
+		Scan(&scanRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range scanRows {
+		cur := out[row.ProblemID]
+		cur.hasAny = true
+		cur.lastID = row.ID
+		cur.lastStatus = row.Status
+		cur.lastAt = row.CreatedAt
+		if row.Status == "Accepted" {
+			cur.hasAccepted = true
+			if cur.firstACAt == nil {
+				t := row.CreatedAt
+				cur.firstACAt = &t
+			}
+		}
+		out[row.ProblemID] = cur
+	}
+	return out, nil
+}
+
+func buildPlaylistProgress(problems []dto.PlaylistProblemItem) dto.PlaylistProgress {
+	n := len(problems)
+	p := dto.PlaylistProgress{ProblemCount: n}
+	if n == 0 {
+		return p
+	}
+	solved := 0
+	attemptedOnly := 0
+	for i := range problems {
+		switch problems[i].Status {
+		case "accepted":
+			solved++
+		case "attempted":
+			attemptedOnly++
+		}
+	}
+	p.SolvedCount = solved
+	p.AttemptedCount = attemptedOnly
+	p.ProgressPercent = int((float64(solved) / float64(n)) * 100)
+	first := problems[0]
+	foundNext := false
+	for i := range problems {
+		if problems[i].Status != "accepted" {
+			pid := problems[i].ProblemID
+			p.NextProblemID = &pid
+			p.NextProblemDisplayID = problems[i].DisplayID
+			foundNext = true
+			break
+		}
+	}
+	if !foundNext {
+		pid := first.ProblemID
+		p.NextProblemID = &pid
+		p.NextProblemDisplayID = first.DisplayID
+	}
+	return p
 }
 
 func (s *TeachingService) ListTeacherPlaylists(userID uint64, role string, page, pageSize int, keyword string) (*dto.PlaylistListResponse, error) {

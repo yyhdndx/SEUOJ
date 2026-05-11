@@ -1,4 +1,4 @@
-﻿# SEU OJ Backend API Documentation
+# SEU OJ Backend API Documentation
 
 本文档基于当前代码仓库中的后端路由与 DTO 整理，目标是提供一份适合开发联调和组内协作使用的接口文档。
 
@@ -445,7 +445,20 @@ Authorization: Bearer <token>
 ### 9.2 题单详情
 - 方法：`GET`
 - 路径：`/api/playlists/:id`
-- 权限：公开
+- 权限：公开；若请求头携带有效 `Authorization: Bearer <token>`，则响应中包含当前用户在该题单上的训练进度（可选登录，无效或过期的 token 会被忽略，仍按游客返回公开信息）
+
+响应在原有字段基础上增加：
+- `progress`（对象，可选；当前实现下登录用户与游客均会返回进度对象，游客为全零与 `not_started` 状态）
+  - `problem_count`：题单题目数
+  - `solved_count`：至少有一次 Accepted 的题目数
+  - `attempted_count`：有提交且尚无 Accepted 的题目数
+  - `progress_percent`：整数百分比 `solved_count / problem_count`（题目数为 0 时为 0）
+  - `next_problem_id` / `next_problem_display_id`：按题单顺序第一道未 Accepted 的题；若全部已通过则为第一道题（复习入口）
+- `problems[]` 每题扩展：
+  - `difficulty`：字符串 `easy` | `medium` | `hard` | `unknown`（由题目表数值难度映射）
+  - `status`：`not_started` | `attempted` | `accepted`
+  - `last_submission_id`、`last_submission_status`、`last_submitted_at`：该用户对本题最后一次提交（仅统计 `contest_id IS NULL` 的提交）
+  - `accepted_at`：该用户本题首次 Accepted 的提交时间（若有）
 
 ### 9.3 我的班级
 - 方法：`GET`
