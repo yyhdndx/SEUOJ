@@ -33,7 +33,7 @@ function renderSolutionForm(problemID, solution) {
       </select>
       <label class="field-label">Content</label>
       <textarea class="text-area solution-editor-source" name="content" rows="20" required>${escapeHTML(solution?.content || "")}</textarea>
-      <div class="view-subtitle">Markdown is supported. Non-admin users need an Accepted submission on this problem before publishing.</div>
+      <div class="view-subtitle">Markdown is supported. Users need an Accepted submission on this problem before publishing.</div>
       <div class="solution-form-actions">
         <button class="primary-button" type="submit">${isEditing ? "Save Solution" : "Create Solution"}</button>
         ${isEditing ? `<button class="ghost-button solution-delete-current" type="button" data-solution-id="${solution.id}">Delete</button>` : ""}
