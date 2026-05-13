@@ -19,6 +19,18 @@ function solutionDraftForUser(list) {
   return list.find((item) => Number(item.author_id) === Number(state.user?.id)) || null;
 }
 
+function buildSolutionManagerHash(problemID, scope, solutionID = "") {
+  const query = new URLSearchParams();
+  if (scope) {
+    query.set("scope", scope);
+  }
+  if (solutionID) {
+    query.set("solution", String(solutionID));
+  }
+  const queryString = query.toString();
+  return `#/problems/${problemID}/solutions/manage${queryString ? `?${queryString}` : ""}`;
+}
+
 function renderSolutionForm(problemID, solution) {
   const isEditing = !!solution;
   return `
@@ -43,7 +55,7 @@ function renderSolutionForm(problemID, solution) {
   `;
 }
 
-function renderAdminSolutionList(list) {
+function renderAdminSolutionList(list, selectedSolutionID = "") {
   if (!state.user || state.user.role !== "admin") return "";
   return `
     <div class="solution-admin-list">
@@ -54,7 +66,7 @@ function renderAdminSolutionList(list) {
       ${list.length ? `
         <div class="solution-admin-items">
           ${list.map((item) => `
-            <article class="solution-admin-item">
+            <article class="solution-admin-item ${Number(selectedSolutionID) === Number(item.id) ? "is-active" : ""}">
               <div>
                 <strong>${escapeHTML(item.title)}</strong>
                 <p class="view-subtitle">updated ${escapeHTML(item.updated_at)}</p>
@@ -66,7 +78,7 @@ function renderAdminSolutionList(list) {
                   data-author-id="${item.author_id}"
                   data-title="${encodeURIComponent(item.title || "")}"
                   data-visibility="${escapeHTML(item.visibility || "public")}"
-                  data-content="${encodeURIComponent(item.content || "")}">Edit</button>
+                  data-content="${encodeURIComponent(item.content || "")}">${Number(selectedSolutionID) === Number(item.id) ? "Current" : "Edit"}</button>
                 <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
               </div>
             </article>
@@ -91,10 +103,14 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
     ]);
     const list = solutions.list || [];
     const canManageAll = state.user?.role === "admin";
-    const queryScope = new URLSearchParams(getCurrentHashPath().split("?")[1] || "").get("scope");
-    const activeScope = canManageAll && (scope === "all" || queryScope === "all") ? "all" : "my";
+    const queryParams = new URLSearchParams(getCurrentHashPath().split("?")[1] || "");
+    const activeScope = canManageAll && queryParams.get("scope") === "all" ? "all" : "my";
     const ownSolution = solutionDraftForUser(list);
-    const draftSolution = activeScope === "all" ? (ownSolution || list[0] || null) : (ownSolution || null);
+    const selectedSolutionID = queryParams.get("solution") || "";
+    const selectedSolution = activeScope === "all"
+      ? (list.find((item) => String(item.id) === String(selectedSolutionID)) || ownSolution || list[0] || null)
+      : (ownSolution || null);
+    const activeSolutionID = selectedSolution?.id || "";
     app.innerHTML = `
       <div class="solution-manager-page">
         <header class="solution-manager-bar">
@@ -104,8 +120,8 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
           </div>
           <div class="solution-manager-actions">
             ${canManageAll ? `
-              <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my">My Solution</button>
-              <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all">Manage Solutions</button>
+              <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my" data-solution-id="${activeSolutionID || ownSolution?.id || ""}">My Solution</button>
+              <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all" data-solution-id="${activeSolutionID || ownSolution?.id || list[0]?.id || ""}">Manage Solutions</button>
             ` : ""}
             <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
           </div>
@@ -113,23 +129,23 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
         <section class="solution-manager-layout">
           <section class="detail-card solution-manager-section solution-editor-section">
             <div class="solution-section-heading">
-              <h3>${draftSolution ? "编辑" : "新建"}</h3>
-              ${draftSolution ? '<span class="status-pill status-neutral">已有题解</span>' : ""}
+              <h3>${selectedSolution ? "编辑" : "新建"}</h3>
+              ${selectedSolution ? '<span class="status-pill status-neutral">当前题解</span>' : ""}
             </div>
-            ${renderSolutionForm(problem.id, draftSolution)}
-            ${activeScope === "all" ? renderAdminSolutionList(list) : ""}
+            ${renderSolutionForm(problem.id, selectedSolution)}
+            ${activeScope === "all" ? renderAdminSolutionList(list, activeSolutionID) : ""}
           </section>
           <section class="detail-card solution-manager-section solution-preview-section">
             <div class="solution-section-heading">
               <h3>${activeScope === "all" ? "已选题解" : "我的题解"}</h3>
               <span class="view-subtitle">预览</span>
             </div>
-            <div class="solution-preview-title">${escapeHTML(draftSolution?.title || "未命名题解")}</div>
+            <div class="solution-preview-title">${escapeHTML(selectedSolution?.title || "未命名题解")}</div>
             <div class="solution-preview-meta">
-              <span class="status-pill ${solutionVisibilityClass(draftSolution?.visibility || "public")}">${escapeHTML(draftSolution?.visibility || "public")}</span>
-              <span>${draftSolution ? "" : "草稿"}</span>
+              <span class="status-pill ${solutionVisibilityClass(selectedSolution?.visibility || "public")}">${escapeHTML(selectedSolution?.visibility || "public")}</span>
+              <span>${selectedSolution ? "" : "草稿"}</span>
             </div>
-            <div class="solution-preview-body">${renderSolutionPreview(draftSolution?.content || "")}</div>
+            <div class="solution-preview-body">${renderSolutionPreview(selectedSolution?.content || "")}</div>
           </section>
         </section>
       </div>
@@ -210,27 +226,15 @@ function setupSolutionEditor(problemID, scope) {
   document.querySelectorAll(".solution-load-button").forEach((button) => {
     button.addEventListener("click", () => {
       const solutionID = button.dataset.solutionId || "";
-      form.dataset.solutionId = solutionID;
-      form.dataset.authorId = button.dataset.authorId || "";
-      form.querySelector('[name="solution_id"]').value = solutionID;
-      titleInput.value = decodeURIComponent(button.dataset.title || "");
-      visibilityInput.value = button.dataset.visibility || "public";
-      const nextContent = decodeURIComponent(button.dataset.content || "");
-      if (markdownEditor) {
-        markdownEditor.setValue(nextContent);
-      } else {
-        contentInput.value = nextContent;
-      }
-      const submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.textContent = "Save Solution";
-      refreshPreview();
+      location.hash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", solutionID);
     });
   });
 
   document.querySelectorAll(".solution-scope-button").forEach((button) => {
     button.addEventListener("click", () => {
       const nextScope = button.dataset.solutionScope || "my";
-      renderProblemSolutionManager(problemID, nextScope);
+      const nextSolutionID = button.dataset.solutionId || "";
+      location.hash = buildSolutionManagerHash(problemID, nextScope, nextSolutionID);
     });
   });
 
