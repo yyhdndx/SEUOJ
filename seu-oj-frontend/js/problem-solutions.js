@@ -57,7 +57,7 @@ function renderAdminSolutionList(list) {
             <article class="solution-admin-item">
               <div>
                 <strong>${escapeHTML(item.title)}</strong>
-                <p class="view-subtitle">Author #${item.author_id} / updated ${escapeHTML(item.updated_at)}</p>
+                <p class="view-subtitle">updated ${escapeHTML(item.updated_at)}</p>
               </div>
               <div class="solution-admin-item-actions">
                 <span class="status-pill ${solutionVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
@@ -99,7 +99,7 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
         <header class="solution-manager-bar">
           <div>
             <h1>My Solution</h1>
-            <p>${escapeHTML(problem.title)} / #${problem.id}</p>
+            <p>${escapeHTML(problem.title)}</p>
           </div>
           <div class="solution-manager-actions">
             ${canManageAll ? `
@@ -126,7 +126,7 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
             <div class="solution-preview-title">${escapeHTML(draftSolution?.title || "Untitled Solution")}</div>
             <div class="solution-preview-meta">
               <span class="status-pill ${solutionVisibilityClass(draftSolution?.visibility || "public")}">${escapeHTML(draftSolution?.visibility || "public")}</span>
-              ${draftSolution ? `<span>Author #${draftSolution.author_id}</span>` : "<span>Draft</span>"}
+              <span>${draftSolution ? "" : "Draft"}</span>
             </div>
             <div class="solution-preview-body">${renderSolutionPreview(draftSolution?.content || "")}</div>
           </section>
@@ -158,7 +158,7 @@ function setupSolutionEditor(problemID, scope) {
     if (previewMeta) {
       previewMeta.innerHTML = `
         <span class="status-pill ${solutionVisibilityClass(visibility)}">${escapeHTML(visibility)}</span>
-        <span>${authorID ? `Author #${escapeHTML(authorID)}` : "Draft"}</span>
+        <span>${authorID ? "Author" : "Draft"}</span>
       `;
     }
     if (previewBody && contentInput) {
@@ -199,7 +199,7 @@ function setupSolutionEditor(problemID, scope) {
           content: formData.get("content"),
         }),
       });
-      setFlash(solutionID ? `Solution #${solutionID} updated` : "Solution created", false);
+      setFlash(solutionID ? "Solution updated" : "Solution created", false);
       return renderProblemSolutionManager(problemID, scope);
     } catch (err) {
       setFlash(err.message, true);
@@ -236,11 +236,11 @@ function setupSolutionEditor(problemID, scope) {
   document.querySelectorAll(".solution-delete-button, .solution-delete-current").forEach((button) => {
     button.addEventListener("click", async () => {
       const solutionID = button.dataset.solutionId;
-      const confirmed = window.confirm(`Delete solution #${solutionID}?`);
+      const confirmed = window.confirm("Delete this solution?");
       if (!confirmed) return;
       try {
         await apiFetch(`/problems/${problemID}/solutions/${solutionID}`, { method: "DELETE" });
-        setFlash(`Solution #${solutionID} deleted`, false);
+        setFlash("Solution deleted", false);
         return renderProblemSolutionManager(problemID, scope);
       } catch (err) {
         setFlash(err.message, true);

@@ -541,6 +541,17 @@ body.problem-fullscreen .problem-pane .pane-content {
   border-radius: 4px;
 }
 
+.problem-markdown pre code,
+.problem-markdown-pre code {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 1em;
+  line-height: 1.6;
+}
+
 .problem-markdown a {
   color: var(--accent-deep);
   text-decoration: underline;
