@@ -91,20 +91,21 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
     ]);
     const list = solutions.list || [];
     const canManageAll = state.user?.role === "admin";
-    const activeScope = canManageAll && scope === "all" ? "all" : "my";
+    const queryScope = new URLSearchParams(getCurrentHashPath().split("?")[1] || "").get("scope");
+    const activeScope = canManageAll && (scope === "all" || queryScope === "all") ? "all" : "my";
     const ownSolution = solutionDraftForUser(list);
     const draftSolution = activeScope === "all" ? (ownSolution || list[0] || null) : (ownSolution || null);
     app.innerHTML = `
       <div class="solution-manager-page">
         <header class="solution-manager-bar">
           <div>
-            <h1>My Solution</h1>
+            <h1>题解管理</h1>
             <p>${escapeHTML(problem.title)}</p>
           </div>
           <div class="solution-manager-actions">
             ${canManageAll ? `
               <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my">My Solution</button>
-              <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all">All Solutions</button>
+              <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all">Manage Solutions</button>
             ` : ""}
             <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
           </div>
@@ -112,21 +113,21 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
         <section class="solution-manager-layout">
           <section class="detail-card solution-manager-section solution-editor-section">
             <div class="solution-section-heading">
-              <h3>${draftSolution ? "Edit" : "Create"}</h3>
-              ${draftSolution ? '<span class="status-pill status-neutral">Existing solution</span>' : ""}
+              <h3>${draftSolution ? "编辑" : "新建"}</h3>
+              ${draftSolution ? '<span class="status-pill status-neutral">已有题解</span>' : ""}
             </div>
             ${renderSolutionForm(problem.id, draftSolution)}
             ${activeScope === "all" ? renderAdminSolutionList(list) : ""}
           </section>
           <section class="detail-card solution-manager-section solution-preview-section">
             <div class="solution-section-heading">
-              <h3>${activeScope === "all" ? "Selected Solution" : "My Solution"}</h3>
-              <span class="view-subtitle">Preview</span>
+              <h3>${activeScope === "all" ? "已选题解" : "我的题解"}</h3>
+              <span class="view-subtitle">预览</span>
             </div>
-            <div class="solution-preview-title">${escapeHTML(draftSolution?.title || "Untitled Solution")}</div>
+            <div class="solution-preview-title">${escapeHTML(draftSolution?.title || "未命名题解")}</div>
             <div class="solution-preview-meta">
               <span class="status-pill ${solutionVisibilityClass(draftSolution?.visibility || "public")}">${escapeHTML(draftSolution?.visibility || "public")}</span>
-              <span>${draftSolution ? "" : "Draft"}</span>
+              <span>${draftSolution ? "" : "草稿"}</span>
             </div>
             <div class="solution-preview-body">${renderSolutionPreview(draftSolution?.content || "")}</div>
           </section>
