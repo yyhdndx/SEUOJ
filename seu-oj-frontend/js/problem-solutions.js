@@ -31,6 +31,26 @@ function buildSolutionManagerHash(problemID, scope, solutionID = "") {
   return `#/problems/${problemID}/solutions/manage${queryString ? `?${queryString}` : ""}`;
 }
 
+function nextSolutionIDAfterDelete(list, deletedSolutionID, fallbackID = "") {
+  const remaining = list.filter((item) => String(item.id) !== String(deletedSolutionID));
+  if (!remaining.length) return "";
+  const deletedIndex = list.findIndex((item) => String(item.id) === String(deletedSolutionID));
+  return remaining[deletedIndex]?.id || remaining[deletedIndex - 1]?.id || remaining[0]?.id || fallbackID || "";
+}
+
+function solutionNavigationFor(list, selectedSolutionID) {
+  const index = list.findIndex((item) => String(item.id) === String(selectedSolutionID));
+  if (index < 0) {
+    return { index: -1, total: list.length, previousID: "", nextID: "" };
+  }
+  return {
+    index,
+    total: list.length,
+    previousID: list[index - 1]?.id || "",
+    nextID: list[index + 1]?.id || "",
+  };
+}
+
 function renderSolutionForm(problemID, solution) {
   const isEditing = !!solution;
   return `
@@ -108,19 +128,20 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
     const ownSolution = solutionDraftForUser(list);
     const selectedSolutionID = queryParams.get("solution") || "";
     const selectedSolution = activeScope === "all"
-      ? (list.find((item) => String(item.id) === String(selectedSolutionID)) || ownSolution || list[0] || null)
+      ? (list.find((item) => String(item.id) === String(selectedSolutionID)) || list[0] || null)
       : (ownSolution || null);
     const activeSolutionID = selectedSolution?.id || "";
+    const solutionNav = activeScope === "all" ? solutionNavigationFor(list, activeSolutionID) : null;
     app.innerHTML = `
       <div class="solution-manager-page">
         <header class="solution-manager-bar">
           <div>
-            <h1>题解管理</h1>
+            <h1>Solution Manager</h1>
             <p>${escapeHTML(problem.title)}</p>
           </div>
           <div class="solution-manager-actions">
             ${canManageAll ? `
-              <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my" data-solution-id="${activeSolutionID || ownSolution?.id || ""}">My Solution</button>
+              <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my" data-solution-id="${ownSolution?.id || activeSolutionID || ""}">My Solution</button>
               <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all" data-solution-id="${activeSolutionID || ownSolution?.id || list[0]?.id || ""}">Manage Solutions</button>
             ` : ""}
             <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
@@ -129,21 +150,30 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
         <section class="solution-manager-layout">
           <section class="detail-card solution-manager-section solution-editor-section">
             <div class="solution-section-heading">
-              <h3>${selectedSolution ? "编辑" : "新建"}</h3>
-              ${selectedSolution ? '<span class="status-pill status-neutral">当前题解</span>' : ""}
+              <h3>${selectedSolution ? "Edit" : "Create"}</h3>
+              ${selectedSolution ? '<span class="status-pill status-neutral">Current Solution</span>' : ""}
             </div>
+            ${solutionNav && solutionNav.total > 1 ? `
+              <div class="solution-editor-nav">
+                <span class="view-subtitle">${solutionNav.index + 1} / ${solutionNav.total}</span>
+                <div class="solution-editor-nav-actions">
+                  <button class="ghost-button solution-nav-button" type="button" data-solution-target="${solutionNav.previousID}" ${solutionNav.previousID ? "" : "disabled"}>Previous</button>
+                  <button class="ghost-button solution-nav-button" type="button" data-solution-target="${solutionNav.nextID}" ${solutionNav.nextID ? "" : "disabled"}>Next</button>
+                </div>
+              </div>
+            ` : ""}
             ${renderSolutionForm(problem.id, selectedSolution)}
             ${activeScope === "all" ? renderAdminSolutionList(list, activeSolutionID) : ""}
           </section>
           <section class="detail-card solution-manager-section solution-preview-section">
             <div class="solution-section-heading">
-              <h3>${activeScope === "all" ? "已选题解" : "我的题解"}</h3>
-              <span class="view-subtitle">预览</span>
+              <h3>${activeScope === "all" ? "Selected Solution" : "My Solution"}</h3>
+              <span class="view-subtitle">Preview</span>
             </div>
-            <div class="solution-preview-title">${escapeHTML(selectedSolution?.title || "未命名题解")}</div>
+            <div class="solution-preview-title">${escapeHTML(selectedSolution?.title || "Untitled Solution")}</div>
             <div class="solution-preview-meta">
               <span class="status-pill ${solutionVisibilityClass(selectedSolution?.visibility || "public")}">${escapeHTML(selectedSolution?.visibility || "public")}</span>
-              <span>${selectedSolution ? "" : "草稿"}</span>
+              <span>${selectedSolution ? "" : "Draft"}</span>
             </div>
             <div class="solution-preview-body">${renderSolutionPreview(selectedSolution?.content || "")}</div>
           </section>
@@ -151,13 +181,13 @@ async function renderProblemSolutionManager(problemID, scope = "my") {
       </div>
     `;
 
-    setupSolutionEditor(problemID, activeScope);
+    setupSolutionEditor(problemID, activeScope, activeSolutionID, list);
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load problem solutions failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
 
-function setupSolutionEditor(problemID, scope) {
+function setupSolutionEditor(problemID, scope, selectedSolutionID, list) {
   const form = document.getElementById("problem-solution-form");
   const titleInput = form?.querySelector('[name="title"]');
   const visibilityInput = form?.querySelector('[name="visibility"]');
@@ -208,7 +238,7 @@ function setupSolutionEditor(problemID, scope) {
     const method = solutionID ? "PUT" : "POST";
     const path = solutionID ? `/problems/${problemID}/solutions/${solutionID}` : `/problems/${problemID}/solutions`;
     try {
-      await apiFetch(path, {
+      const result = await apiFetch(path, {
         method,
         body: JSON.stringify({
           title: formData.get("title"),
@@ -217,7 +247,12 @@ function setupSolutionEditor(problemID, scope) {
         }),
       });
       setFlash(solutionID ? "Solution updated" : "Solution created", false);
-      return renderProblemSolutionManager(problemID, scope);
+      const nextSolutionID = String(result?.id || solutionID || selectedSolutionID || "");
+      const nextHash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", nextSolutionID);
+      if (location.hash === nextHash) {
+        return renderProblemSolutionManager(problemID, scope);
+      }
+      location.hash = nextHash;
     } catch (err) {
       setFlash(err.message, true);
     }
@@ -238,6 +273,14 @@ function setupSolutionEditor(problemID, scope) {
     });
   });
 
+  document.querySelectorAll(".solution-nav-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetSolutionID = button.dataset.solutionTarget || "";
+      if (!targetSolutionID) return;
+      location.hash = buildSolutionManagerHash(problemID, "all", targetSolutionID);
+    });
+  });
+
   document.querySelectorAll(".solution-delete-button, .solution-delete-current").forEach((button) => {
     button.addEventListener("click", async () => {
       const solutionID = button.dataset.solutionId;
@@ -246,7 +289,14 @@ function setupSolutionEditor(problemID, scope) {
       try {
         await apiFetch(`/problems/${problemID}/solutions/${solutionID}`, { method: "DELETE" });
         setFlash("Solution deleted", false);
-        return renderProblemSolutionManager(problemID, scope);
+        const nextSolutionID = scope === "all"
+          ? nextSolutionIDAfterDelete(list, solutionID, selectedSolutionID)
+          : "";
+        const nextHash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", nextSolutionID);
+        if (location.hash === nextHash) {
+          return renderProblemSolutionManager(problemID, scope);
+        }
+        location.hash = nextHash;
       } catch (err) {
         setFlash(err.message, true);
       }

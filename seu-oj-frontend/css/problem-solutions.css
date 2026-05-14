@@ -59,6 +59,20 @@
   align-items: center;
 }
 
+.solution-editor-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0 14px;
+}
+
+.solution-editor-nav-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .solution-scope-button.is-active {
   background: var(--accent);
   color: #fff;

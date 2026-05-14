@@ -515,7 +515,7 @@ function renderProblemSolutions(solutions, problemID) {
       </div>
     `
     : state.user
-      ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">我的题解</a>`
+      ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">My Solution</a>`
       : "";
   return `
     <div class="detail-block">
