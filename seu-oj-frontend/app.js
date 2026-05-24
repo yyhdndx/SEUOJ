@@ -345,6 +345,7 @@ async function renderRoute() {
   if (routePath.startsWith("/teacher/classes/")) return renderTeacherClassDetail(routePath.split("/")[3]);
   if (routePath.startsWith("/teacher/assignments/")) return renderTeacherAssignmentOverview(routePath.split("/")[3]);
   if (routePath === "/rankings") return renderRankings();
+  if (routePath === "/api") return renderApiDocs();
   if (routePath.startsWith("/forum/topics/")) return renderForumTopicDetail(routePath.split("/")[3]);
   if (routePath === "/forum") return renderForum();
   if (routePath.startsWith("/contests/") && contestProblemMatch) return renderContestProblemDetail(contestProblemMatch[1], contestProblemMatch[2]);

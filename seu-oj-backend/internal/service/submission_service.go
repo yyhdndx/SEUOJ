@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -176,6 +177,86 @@ func (s *SubmissionService) ListSubmissions(requestRole string, page, pageSize i
 		return nil, err
 	}
 	return toSubmissionListResponse(submissions, total, page, pageSize), nil
+}
+
+func (s *SubmissionService) ListPublicSubmissions(page, pageSize int, userID *uint64, problemID *uint64, contestID *uint64, status *string, language string) (*dto.PublicSubmissionListResponse, error) {
+	type row struct {
+		ID               uint64
+		UserID           uint64
+		Username         string
+		ProblemID        uint64
+		ProblemDisplayID string
+		ProblemTitle     string
+		ContestID        *uint64
+		Language         string
+		Status           string
+		RuntimeMS        *int
+		MemoryKB         *int
+		CreatedAt        time.Time
+		JudgedAt         *time.Time
+	}
+	query := s.db.Table("submissions s").
+		Joins("JOIN users u ON u.id = s.user_id").
+		Joins("JOIN problems p ON p.id = s.problem_id").
+		Select(`
+			s.id,
+			s.user_id,
+			u.username,
+			s.problem_id,
+			p.display_id AS problem_display_id,
+			p.title AS problem_title,
+			s.contest_id,
+			s.language,
+			s.status,
+			s.runtime_ms,
+			s.memory_kb,
+			s.created_at,
+			s.judged_at
+		`).
+		Where("p.visible = ?", true).
+		Where("(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= NOW())))", true)
+	if userID != nil {
+		query = query.Where("s.user_id = ?", *userID)
+	}
+	if problemID != nil {
+		query = query.Where("s.problem_id = ?", *problemID)
+	}
+	if contestID != nil {
+		query = query.Where("s.contest_id = ?", *contestID)
+	}
+	if status != nil && strings.TrimSpace(*status) != "" {
+		query = query.Where("s.status = ?", strings.TrimSpace(*status))
+	}
+	if language = strings.TrimSpace(language); language != "" {
+		query = query.Where("s.language = ?", language)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	var rows []row
+	if err := query.Order("s.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]dto.PublicSubmissionListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, dto.PublicSubmissionListItem{
+			ID:               row.ID,
+			UserID:           row.UserID,
+			Username:         row.Username,
+			ProblemID:        row.ProblemID,
+			ProblemDisplayID: row.ProblemDisplayID,
+			ProblemTitle:     row.ProblemTitle,
+			ContestID:        row.ContestID,
+			Language:         row.Language,
+			Status:           row.Status,
+			RuntimeMS:        row.RuntimeMS,
+			MemoryKB:         row.MemoryKB,
+			CreatedAt:        row.CreatedAt,
+			JudgedAt:         row.JudgedAt,
+		})
+	}
+	return &dto.PublicSubmissionListResponse{List: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
 func (s *SubmissionService) GetSubmissionDetail(ctx context.Context, requestUserID uint64, requestRole string, submissionID uint64) (*dto.SubmissionDetailResponse, error) {

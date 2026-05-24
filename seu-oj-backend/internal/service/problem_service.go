@@ -146,6 +146,68 @@ func (s *ProblemService) ListProblems(ctx context.Context, page, pageSize int, k
 	})
 }
 
+func (s *ProblemService) ListPublicProblems(page, pageSize int, keyword string, difficulty *int) (*dto.PublicProblemListResponse, error) {
+	type row struct {
+		ID              uint64
+		DisplayID       string
+		Title           string
+		Difficulty      int
+		TimeLimitMS     int
+		MemoryLimitMB   int
+		AcceptedCount   int64
+		SubmissionCount int64
+	}
+	query := s.db.Table("problems p").
+		Select(`
+			p.id,
+			p.display_id,
+			p.title,
+			p.difficulty,
+			p.time_limit_ms,
+			p.memory_limit_mb,
+			COALESCE(SUM(CASE WHEN s.status = 'Accepted' THEN 1 ELSE 0 END), 0) AS accepted_count,
+			COUNT(s.id) AS submission_count
+		`).
+		Joins("LEFT JOIN submissions s ON s.problem_id = p.id").
+		Where("p.visible = ?", true).
+		Group("p.id")
+	if trimmedKeyword := strings.TrimSpace(keyword); trimmedKeyword != "" {
+		query = query.Where("p.title LIKE ? OR p.display_id LIKE ?", "%"+trimmedKeyword+"%", "%"+trimmedKeyword+"%")
+	}
+	if difficulty != nil {
+		query = query.Where("p.difficulty = ?", *difficulty)
+	}
+	var total int64
+	countQuery := s.db.Table("problems p").Where("p.visible = ?", true)
+	if trimmedKeyword := strings.TrimSpace(keyword); trimmedKeyword != "" {
+		countQuery = countQuery.Where("p.title LIKE ? OR p.display_id LIKE ?", "%"+trimmedKeyword+"%", "%"+trimmedKeyword+"%")
+	}
+	if difficulty != nil {
+		countQuery = countQuery.Where("p.difficulty = ?", *difficulty)
+	}
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	var rows []row
+	if err := query.Order("p.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]dto.PublicProblemListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, dto.PublicProblemListItem{
+			ID:              row.ID,
+			DisplayID:       row.DisplayID,
+			Title:           row.Title,
+			Difficulty:      row.Difficulty,
+			TimeLimitMS:     row.TimeLimitMS,
+			MemoryLimitMB:   row.MemoryLimitMB,
+			AcceptedCount:   row.AcceptedCount,
+			SubmissionCount: row.SubmissionCount,
+		})
+	}
+	return &dto.PublicProblemListResponse{List: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
 func (s *ProblemService) listRecentProblems(ctx context.Context, pageSize int) (*dto.ProblemListResponse, error) {
 	const cachedLimit = 100
 	key := fmt.Sprintf("cache:problems:list:recent:limit%d", cachedLimit)

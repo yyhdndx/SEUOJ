@@ -143,6 +143,15 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 		problemGroup.GET("/:id", problemHandler.Detail)
 	}
 
+	publicGroup := apiGroup.Group("/public")
+	{
+		publicGroup.GET("/problems", problemHandler.PublicList)
+		publicGroup.GET("/problems/:id", problemHandler.PublicDetail)
+		publicGroup.GET("/contests", contestHandler.List)
+		publicGroup.GET("/contests/:id/ranklist", contestHandler.Ranklist)
+		publicGroup.GET("/submissions", submissionHandler.PublicList)
+	}
+
 	problemAuthGroup := apiGroup.Group("/problems")
 	problemAuthGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
 	{
@@ -197,7 +206,11 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	{
 		adminProblemGroup.GET("", problemHandler.AdminList)
 		adminProblemGroup.POST("", problemHandler.Create)
+		adminProblemGroup.POST("/import", problemHandler.ImportProblemPackage)
 		adminProblemGroup.GET("/:id", problemHandler.AdminDetail)
+		adminProblemGroup.GET("/:id/export", problemHandler.ExportProblemPackage)
+		adminProblemGroup.POST("/:id/testcases/import", problemHandler.ImportTestcases)
+		adminProblemGroup.GET("/:id/testcases/export", problemHandler.ExportTestcases)
 		adminProblemGroup.PUT("/:id", problemHandler.Update)
 		adminProblemGroup.DELETE("/:id", problemHandler.Delete)
 	}

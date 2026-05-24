@@ -75,6 +75,29 @@ type SubmissionListResponse struct {
 	PageSize int                  `json:"page_size"`
 }
 
+type PublicSubmissionListItem struct {
+	ID               uint64     `json:"id"`
+	UserID           uint64     `json:"user_id"`
+	Username         string     `json:"username"`
+	ProblemID        uint64     `json:"problem_id"`
+	ProblemDisplayID string     `json:"problem_display_id"`
+	ProblemTitle     string     `json:"problem_title"`
+	ContestID        *uint64    `json:"contest_id"`
+	Language         string     `json:"language"`
+	Status           string     `json:"status"`
+	RuntimeMS        *int       `json:"runtime_ms"`
+	MemoryKB         *int       `json:"memory_kb"`
+	CreatedAt        time.Time  `json:"created_at"`
+	JudgedAt         *time.Time `json:"judged_at"`
+}
+
+type PublicSubmissionListResponse struct {
+	List     []PublicSubmissionListItem `json:"list"`
+	Total    int64                      `json:"total"`
+	Page     int                        `json:"page"`
+	PageSize int                        `json:"page_size"`
+}
+
 type SubmissionDetailResponse struct {
 	ID          uint64                     `json:"id"`
 	UserID      uint64                     `json:"user_id"`

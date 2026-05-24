@@ -699,9 +699,119 @@ Authorization: Bearer <token>
 }
 ```
 
-## 12. 主要状态值约定
+## 12. Public API and Problem Package API
 
-### 12.1 提交状态
+### 12.1 Public read APIs
+
+These APIs are designed for external scripts and public data queries. They do not require authentication.
+
+- `GET /api/public/problems`
+- `GET /api/public/problems/:id`
+- `GET /api/public/contests`
+- `GET /api/public/contests/:id/ranklist`
+- `GET /api/public/submissions`
+
+`GET /api/public/problems` query parameters:
+
+- `page`
+- `page_size`
+- `keyword`
+- `difficulty`
+
+The public problem list includes basic stats such as `accepted_count` and `submission_count`.
+
+`GET /api/public/submissions` query parameters:
+
+- `page`
+- `page_size`
+- `user_id`
+- `problem_id`
+- `contest_id`
+- `status`
+- `language`
+
+Security notes:
+
+- Public problem APIs only expose visible problems.
+- Public problem detail does not expose hidden testcases.
+- Public submission APIs do not expose source code.
+- Public contest submission data is filtered to avoid leaking frozen ranklist information.
+
+### 12.2 Admin testcase package APIs
+
+These APIs require admin authentication.
+
+- `POST /api/admin/problems/:id/testcases/import`
+- `GET /api/admin/problems/:id/testcases/export`
+
+Testcase import uses `multipart/form-data`:
+
+- `file`: zip file
+- `replace`: optional boolean, whether to replace existing testcases
+- `case_type`: optional, `sample` or `hidden`, defaults to `hidden`
+
+Recommended zip layout:
+
+```text
+1.in
+1.out
+2.in
+2.out
+```
+
+The import API validates that `.in` and `.out` files are paired.
+
+### 12.3 Admin problem package APIs
+
+These APIs require admin authentication.
+
+- `POST /api/admin/problems/import`
+- `GET /api/admin/problems/:id/export`
+
+Problem import uses `multipart/form-data`:
+
+- `file`: zip file
+
+Recommended zip layout:
+
+```text
+problem.json
+tests/
+  1.in
+  1.out
+  2.in
+  2.out
+```
+
+`problem.json` example:
+
+```json
+{
+  "display_id": "1001",
+  "title": "A + B Problem",
+  "description": "Given two integers, output their sum.",
+  "input_desc": "Two integers a and b.",
+  "output_desc": "The sum of a and b.",
+  "sample_input": "1 2\n",
+  "sample_output": "3\n",
+  "judge_mode": "standard",
+  "difficulty": 1,
+  "time_limit_ms": 1000,
+  "memory_limit_mb": 256,
+  "visible": true
+}
+```
+
+Security notes:
+
+- Zip paths are cleaned to prevent path traversal.
+- Upload size is limited by the backend service.
+- Problem import rejects duplicate `display_id`.
+- Problem and testcase import writes are transactional.
+
+## 13. 主要状态值约定
+
+### 13.1 提交状态
 - `Pending`
 - `Running`
 - `Accepted`
@@ -711,26 +821,26 @@ Authorization: Bearer <token>
 - `Time Limit Exceeded`
 - `System Error`
 
-### 12.2 比赛状态
+### 13.2 比赛状态
 - `upcoming`
 - `running`
 - `ended`
 
-### 12.3 论坛范围
+### 13.3 论坛范围
 - `general`
 - `problem`
 - `contest`
 
-### 12.4 题单可见性
+### 13.4 题单可见性
 - `public`
 - `private`
 - `class`
 
-### 12.5 作业类型
+### 13.5 作业类型
 - `homework`
 - `exam`
 
-## 13. 建议联调顺序
+## 14. 建议联调顺序
 
 推荐前后端联调顺序：
 
@@ -742,7 +852,7 @@ Authorization: Bearer <token>
 6. `forum`：帖子列表、详情、发帖回帖
 7. `teacher/admin`：教师端、管理端接口
 
-## 14. 说明
+## 15. 说明
 
 - 文档基于当前代码实现，不是 Swagger 自动生成结果。
 - 如果后续新增路由，建议同步维护本文件。
