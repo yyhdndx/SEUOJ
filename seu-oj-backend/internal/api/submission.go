@@ -187,6 +187,43 @@ func (h *SubmissionHandler) AdminList(c *gin.Context) {
 	response.OK(c, result)
 }
 
+func (h *SubmissionHandler) PublicList(c *gin.Context) {
+	var query dto.SubmissionListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		response.Error(c, "invalid query parameters")
+		return
+	}
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.PageSize == 0 {
+		query.PageSize = 20
+	}
+
+	var userID *uint64
+	if query.UserID != 0 {
+		userID = &query.UserID
+	}
+	var problemID *uint64
+	if query.ProblemID != 0 {
+		problemID = &query.ProblemID
+	}
+	var contestID *uint64
+	if query.ContestID != 0 {
+		contestID = &query.ContestID
+	}
+	var status *string
+	if query.Status != "" {
+		status = &query.Status
+	}
+	result, err := h.submissionService.ListPublicSubmissions(query.Page, query.PageSize, userID, problemID, contestID, status, c.Query("language"))
+	if err != nil {
+		response.Error(c, "query public submission list failed")
+		return
+	}
+	response.OK(c, result)
+}
+
 func (h *SubmissionHandler) Rejudge(c *gin.Context) {
 	role, ok := getContextRole(c)
 	if !ok {

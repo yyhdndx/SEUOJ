@@ -1,4 +1,4 @@
-﻿package dto
+package dto
 
 import "time"
 
@@ -59,6 +59,24 @@ type ProblemListResponse struct {
 	Total    int64             `json:"total"`
 	Page     int               `json:"page"`
 	PageSize int               `json:"page_size"`
+}
+
+type PublicProblemListItem struct {
+	ID              uint64 `json:"id"`
+	DisplayID       string `json:"display_id"`
+	Title           string `json:"title"`
+	Difficulty      int    `json:"difficulty"`
+	TimeLimitMS     int    `json:"time_limit_ms"`
+	MemoryLimitMB   int    `json:"memory_limit_mb"`
+	AcceptedCount   int64  `json:"accepted_count"`
+	SubmissionCount int64  `json:"submission_count"`
+}
+
+type PublicProblemListResponse struct {
+	List     []PublicProblemListItem `json:"list"`
+	Total    int64                   `json:"total"`
+	Page     int                     `json:"page"`
+	PageSize int                     `json:"page_size"`
 }
 
 type CreateProblemResponse struct {

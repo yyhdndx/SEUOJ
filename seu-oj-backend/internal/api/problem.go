@@ -2,6 +2,8 @@ package api
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -115,6 +117,35 @@ func (h *ProblemHandler) List(c *gin.Context) {
 	response.OK(c, result)
 }
 
+func (h *ProblemHandler) PublicList(c *gin.Context) {
+	var query dto.ProblemListQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		response.Error(c, "invalid query parameters")
+		return
+	}
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.PageSize == 0 {
+		query.PageSize = 20
+	}
+	var difficulty *int
+	if raw := c.Query("difficulty"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed > 3 {
+			response.Error(c, "invalid difficulty")
+			return
+		}
+		difficulty = &parsed
+	}
+	result, err := h.problemService.ListPublicProblems(query.Page, query.PageSize, query.Keyword, difficulty)
+	if err != nil {
+		response.Error(c, "query public problem list failed")
+		return
+	}
+	response.OK(c, result)
+}
+
 func (h *ProblemHandler) Detail(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -123,6 +154,26 @@ func (h *ProblemHandler) Detail(c *gin.Context) {
 	}
 
 	problem, err := h.problemService.GetProblemDetail(id)
+	if err != nil {
+		if errors.Is(err, service.ErrProblemNotFound) {
+			response.Error(c, "problem not found")
+			return
+		}
+		response.Error(c, "query problem detail failed")
+		return
+	}
+
+	response.OK(c, problem)
+}
+
+func (h *ProblemHandler) PublicDetail(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+
+	problem, err := h.problemService.PublicProblemDetail(id)
 	if err != nil {
 		if errors.Is(err, service.ErrProblemNotFound) {
 			response.Error(c, "problem not found")
@@ -397,4 +448,118 @@ func (h *ProblemHandler) Delete(c *gin.Context) {
 	}
 
 	response.OK(c, gin.H{"problem_id": id})
+}
+
+func (h *ProblemHandler) ImportTestcases(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Error(c, "missing upload file")
+		return
+	}
+	opened, err := file.Open()
+	if err != nil {
+		response.Error(c, "open upload file failed")
+		return
+	}
+	defer opened.Close()
+
+	result, err := h.problemService.ImportProblemTestcases(id, opened, service.TestcaseImportOptions{
+		Replace:  parseBoolForm(c.PostForm("replace")),
+		CaseType: c.DefaultPostForm("case_type", "hidden"),
+	})
+	if err != nil {
+		handleProblemPackageError(c, err, "import testcases failed")
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *ProblemHandler) ExportTestcases(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	data, filename, err := h.problemService.ExportProblemTestcases(id)
+	if err != nil {
+		handleProblemPackageError(c, err, "export testcases failed")
+		return
+	}
+	writeZip(c, filename, data)
+}
+
+func (h *ProblemHandler) ImportProblemPackage(c *gin.Context) {
+	userID, ok := getContextUserID(c)
+	if !ok {
+		return
+	}
+	role, ok := getContextRole(c)
+	if !ok {
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Error(c, "missing upload file")
+		return
+	}
+	opened, err := file.Open()
+	if err != nil {
+		response.Error(c, "open upload file failed")
+		return
+	}
+	defer opened.Close()
+
+	result, err := h.problemService.ImportProblemPackage(userID, role, opened)
+	if err != nil {
+		handleProblemPackageError(c, err, "import problem package failed")
+		return
+	}
+	response.OK(c, result)
+}
+
+func (h *ProblemHandler) ExportProblemPackage(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Error(c, "invalid problem id")
+		return
+	}
+	data, filename, err := h.problemService.ExportProblemPackage(id)
+	if err != nil {
+		handleProblemPackageError(c, err, "export problem package failed")
+		return
+	}
+	writeZip(c, filename, data)
+}
+
+func parseBoolForm(value string) bool {
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func writeZip(c *gin.Context, filename string, data []byte) {
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Length", strconv.Itoa(len(data)))
+	c.Data(200, "application/zip", data)
+}
+
+func handleProblemPackageError(c *gin.Context, err error, fallback string) {
+	switch {
+	case errors.Is(err, service.ErrPermissionDenied):
+		response.Error(c, "admin permission required")
+	case errors.Is(err, service.ErrProblemNotFound):
+		response.Error(c, "problem not found")
+	case errors.Is(err, service.ErrProblemPackageInvalid):
+		response.Error(c, "invalid problem package")
+	case errors.Is(err, service.ErrProblemDisplayIDConflict):
+		response.Error(c, "problem display id already exists")
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		response.Error(c, "invalid problem package")
+	default:
+		response.Error(c, fallback)
+	}
 }
