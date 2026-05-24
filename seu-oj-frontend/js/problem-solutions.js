@@ -8,7 +8,108 @@ function renderSolutionEmpty(message) {
   return `<div class="solution-empty">${escapeHTML(message)}</div>`;
 }
 
-async function renderProblemSolutionManager(problemID) {
+function renderSolutionPreview(content) {
+  if (typeof renderMarkdownBlock === "function") {
+    return renderMarkdownBlock(content);
+  }
+  return `<div class="problem-markdown">${escapeHTML(content || "No content.")}</div>`;
+}
+
+function solutionDraftForUser(list) {
+  return list.find((item) => Number(item.author_id) === Number(state.user?.id)) || null;
+}
+
+function buildSolutionManagerHash(problemID, scope, solutionID = "") {
+  const query = new URLSearchParams();
+  if (scope) {
+    query.set("scope", scope);
+  }
+  if (solutionID) {
+    query.set("solution", String(solutionID));
+  }
+  const queryString = query.toString();
+  return `#/problems/${problemID}/solutions/manage${queryString ? `?${queryString}` : ""}`;
+}
+
+function nextSolutionIDAfterDelete(list, deletedSolutionID, fallbackID = "") {
+  const remaining = list.filter((item) => String(item.id) !== String(deletedSolutionID));
+  if (!remaining.length) return "";
+  const deletedIndex = list.findIndex((item) => String(item.id) === String(deletedSolutionID));
+  return remaining[deletedIndex]?.id || remaining[deletedIndex - 1]?.id || remaining[0]?.id || fallbackID || "";
+}
+
+function solutionNavigationFor(list, selectedSolutionID) {
+  const index = list.findIndex((item) => String(item.id) === String(selectedSolutionID));
+  if (index < 0) {
+    return { index: -1, total: list.length, previousID: "", nextID: "" };
+  }
+  return {
+    index,
+    total: list.length,
+    previousID: list[index - 1]?.id || "",
+    nextID: list[index + 1]?.id || "",
+  };
+}
+
+function renderSolutionForm(problemID, solution) {
+  const isEditing = !!solution;
+  return `
+    <form id="problem-solution-form" class="solution-form" data-solution-id="${isEditing ? solution.id : ""}" data-author-id="${isEditing ? solution.author_id : ""}">
+      <input type="hidden" name="solution_id" value="${isEditing ? solution.id : ""}" />
+      <label class="field-label">Title</label>
+      <input class="text-input" name="title" value="${escapeHTML(solution?.title || "")}" required />
+      <label class="field-label">Visibility</label>
+      <select class="select-input" name="visibility">
+        <option value="public" ${solution?.visibility === "public" ? "selected" : ""}>public</option>
+        <option value="private" ${solution?.visibility === "private" ? "selected" : ""}>private</option>
+      </select>
+      <label class="field-label">Content</label>
+      <textarea class="text-area solution-editor-source" name="content" rows="20" required>${escapeHTML(solution?.content || "")}</textarea>
+      <div class="view-subtitle">Markdown is supported. Users need an Accepted submission on this problem before publishing.</div>
+      <div class="solution-form-actions">
+        <button class="primary-button" type="submit">${isEditing ? "Save Solution" : "Create Solution"}</button>
+        ${isEditing ? `<button class="ghost-button solution-delete-current" type="button" data-solution-id="${solution.id}">Delete</button>` : ""}
+        <a class="ghost-button" href="#/problems/${problemID}">Cancel</a>
+      </div>
+    </form>
+  `;
+}
+
+function renderAdminSolutionList(list, selectedSolutionID = "") {
+  if (!state.user || state.user.role !== "admin") return "";
+  return `
+    <div class="solution-admin-list">
+      <div class="solution-admin-list-head">
+        <h4>All Solutions</h4>
+        <span class="status-pill status-neutral">${list.length}</span>
+      </div>
+      ${list.length ? `
+        <div class="solution-admin-items">
+          ${list.map((item) => `
+            <article class="solution-admin-item ${Number(selectedSolutionID) === Number(item.id) ? "is-active" : ""}">
+              <div>
+                <strong>${escapeHTML(item.title)}</strong>
+                <p class="view-subtitle">updated ${escapeHTML(item.updated_at)}</p>
+              </div>
+              <div class="solution-admin-item-actions">
+                <span class="status-pill ${solutionVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
+                <button class="ghost-button solution-load-button" type="button"
+                  data-solution-id="${item.id}"
+                  data-author-id="${item.author_id}"
+                  data-title="${encodeURIComponent(item.title || "")}"
+                  data-visibility="${escapeHTML(item.visibility || "public")}"
+                  data-content="${encodeURIComponent(item.content || "")}">${Number(selectedSolutionID) === Number(item.id) ? "Current" : "Edit"}</button>
+                <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      ` : renderSolutionEmpty("No solutions yet.")}
+    </div>
+  `;
+}
+
+async function renderProblemSolutionManager(problemID, scope = "my") {
   if (!state.user) {
     app.innerHTML = `<div class="detail-card"><p>Login required.</p></div>`;
     return;
@@ -22,190 +123,182 @@ async function renderProblemSolutionManager(problemID) {
     ]);
     const list = solutions.list || [];
     const canManageAll = state.user?.role === "admin";
-    const ownSolution = list.find((item) => Number(item.author_id) === Number(state.user?.id));
-    const canCreate = !ownSolution;
+    const queryParams = new URLSearchParams(getCurrentHashPath().split("?")[1] || "");
+    const activeScope = canManageAll && queryParams.get("scope") === "all" ? "all" : "my";
+    const ownSolution = solutionDraftForUser(list);
+    const selectedSolutionID = queryParams.get("solution") || "";
+    const selectedSolution = activeScope === "all"
+      ? (list.find((item) => String(item.id) === String(selectedSolutionID)) || list[0] || null)
+      : (ownSolution || null);
+    const activeSolutionID = selectedSolution?.id || "";
+    const solutionNav = activeScope === "all" ? solutionNavigationFor(list, activeSolutionID) : null;
     app.innerHTML = `
       <div class="solution-manager-page">
         <header class="solution-manager-bar">
           <div>
-            <h1>My Solution</h1>
-            <p>${escapeHTML(problem.title)} / #${problem.id}</p>
+            <h1>Solution Manager</h1>
+            <p>${escapeHTML(problem.title)}</p>
           </div>
-          <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
+          <div class="solution-manager-actions">
+            ${canManageAll ? `
+              <button class="ghost-button solution-scope-button ${activeScope === "my" ? "is-active" : ""}" type="button" data-solution-scope="my" data-solution-id="${ownSolution?.id || activeSolutionID || ""}">My Solution</button>
+              <button class="ghost-button solution-scope-button ${activeScope === "all" ? "is-active" : ""}" type="button" data-solution-scope="all" data-solution-id="${activeSolutionID || ownSolution?.id || list[0]?.id || ""}">Manage Solutions</button>
+            ` : ""}
+            <a class="ghost-button" href="#/problems/${problem.id}">Back to Problem</a>
+          </div>
         </header>
         <section class="solution-manager-layout">
-          <section class="detail-card solution-manager-section solution-existing-section">
+          <section class="detail-card solution-manager-section solution-editor-section">
             <div class="solution-section-heading">
-              <h3>Create</h3>
-              ${ownSolution ? '<span class="status-pill status-neutral">Already created</span>' : ""}
+              <h3>${selectedSolution ? "Edit" : "Create"}</h3>
+              ${selectedSolution ? '<span class="status-pill status-neutral">Current Solution</span>' : ""}
             </div>
-            ${canCreate ? `
-              <form id="problem-solution-form" class="solution-form">
-                <label class="field-label">Title</label>
-                <input class="text-input" name="title" required />
-                <label class="field-label">Visibility</label>
-                <select class="select-input" name="visibility">
-                  <option value="public">public</option>
-                  <option value="private">private</option>
-                </select>
-                <label class="field-label">Content</label>
-                <div class="solution-markdown-editor">
-                  <div class="solution-preview-tabs" role="tablist" aria-label="Create solution content mode">
-                    <button class="solution-preview-tab is-active" type="button" data-preview-mode="edit" data-preview-group="create">Edit</button>
-                    <button class="solution-preview-tab" type="button" data-preview-mode="preview" data-preview-group="create">Preview</button>
-                  </div>
-                  <textarea class="text-area solution-markdown-source" name="content" rows="18" required data-preview-source="create"></textarea>
-                  <div class="solution-markdown-preview hidden" data-preview-target="create">${renderSolutionPreview("")}</div>
+            ${solutionNav && solutionNav.total > 1 ? `
+              <div class="solution-editor-nav">
+                <span class="view-subtitle">${solutionNav.index + 1} / ${solutionNav.total}</span>
+                <div class="solution-editor-nav-actions">
+                  <button class="ghost-button solution-nav-button" type="button" data-solution-target="${solutionNav.previousID}" ${solutionNav.previousID ? "" : "disabled"}>Previous</button>
+                  <button class="ghost-button solution-nav-button" type="button" data-solution-target="${solutionNav.nextID}" ${solutionNav.nextID ? "" : "disabled"}>Next</button>
                 </div>
-                <div class="view-subtitle">Markdown is supported. Non-admin users need an Accepted submission on this problem before publishing.</div>
-                <div class="solution-form-actions"><button class="primary-button" type="submit">Create Solution</button></div>
-              </form>
-            ` : `
-              <div class="solution-empty">
-                You already have a solution for this problem. Edit it in the section on the right.
               </div>
-            `}
+            ` : ""}
+            ${renderSolutionForm(problem.id, selectedSolution)}
+            ${activeScope === "all" ? renderAdminSolutionList(list, activeSolutionID) : ""}
           </section>
-          <section class="detail-card solution-manager-section">
+          <section class="detail-card solution-manager-section solution-preview-section">
             <div class="solution-section-heading">
-              <h3>Your Solution</h3>
-              ${canManageAll ? '<span class="view-subtitle">Admin view shows all authors.</span>' : ""}
+              <h3>${activeScope === "all" ? "Selected Solution" : "My Solution"}</h3>
+              <span class="view-subtitle">Preview</span>
             </div>
-            ${list.length ? `
-              <div class="solution-stack solution-existing-stack">
-                ${list.map((item) => `
-                  <article class="solution-card solution-existing-card">
-                    <div class="view-header compact">
-                      <div>
-                        <h4 class="solution-title">${escapeHTML(item.title)}</h4>
-                        <p class="view-subtitle">Author #${item.author_id} / updated ${escapeHTML(item.updated_at)}</p>
-                      </div>
-                      <span class="status-pill ${solutionVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
-                    </div>
-                    <form class="solution-edit-form" data-solution-id="${item.id}">
-                      <label class="field-label">Title</label>
-                      <input class="text-input" name="title" value="${escapeHTML(item.title)}" required />
-                      <label class="field-label">Visibility</label>
-                      <select class="select-input" name="visibility">
-                        <option value="public" ${item.visibility === "public" ? "selected" : ""}>public</option>
-                        <option value="private" ${item.visibility === "private" ? "selected" : ""}>private</option>
-                      </select>
-                      <label class="field-label">Content</label>
-                      <textarea class="text-area" name="content" rows="10" required>${escapeHTML(item.content || "")}</textarea>
-                      <div class="solution-form-actions">
-                        <button class="ghost-button" type="submit">Save</button>
-                        <button class="ghost-button solution-delete-button" type="button" data-solution-id="${item.id}">Delete</button>
-                      </div>
-                    </form>
-                  </article>
-                `).join("")}
-              </div>
-            ` : renderSolutionEmpty("No solutions yet.")}
+            <div class="solution-preview-title">${escapeHTML(selectedSolution?.title || "Untitled Solution")}</div>
+            <div class="solution-preview-meta">
+              <span class="status-pill ${solutionVisibilityClass(selectedSolution?.visibility || "public")}">${escapeHTML(selectedSolution?.visibility || "public")}</span>
+              <span>${selectedSolution ? "" : "Draft"}</span>
+            </div>
+            <div class="solution-preview-body">${renderSolutionPreview(selectedSolution?.content || "")}</div>
           </section>
         </section>
       </div>
     `;
 
-    setupSolutionMarkdownPreview();
-
-    document.getElementById("problem-solution-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      try {
-        await apiFetch(`/problems/${problemID}/solutions`, {
-          method: "POST",
-          body: JSON.stringify({
-            title: form.get("title"),
-            visibility: form.get("visibility"),
-            content: form.get("content"),
-          }),
-        });
-        setFlash("Solution created", false);
-        return renderProblemSolutionManager(problemID);
-      } catch (err) {
-        setFlash(err.message, true);
-      }
-    });
-
-    document.querySelectorAll(".solution-edit-form").forEach((formElement) => {
-      formElement.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = new FormData(formElement);
-        const solutionID = formElement.dataset.solutionId;
-        try {
-          await apiFetch(`/problems/${problemID}/solutions/${solutionID}`, {
-            method: "PUT",
-            body: JSON.stringify({
-              title: form.get("title"),
-              visibility: form.get("visibility"),
-              content: form.get("content"),
-            }),
-          });
-          setFlash(`Solution #${solutionID} updated`, false);
-          return renderProblemSolutionManager(problemID);
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
-
-    document.querySelectorAll(".solution-delete-button").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const solutionID = button.dataset.solutionId;
-        const confirmed = window.confirm(`Delete solution #${solutionID}?`);
-        if (!confirmed) return;
-        try {
-          await apiFetch(`/problems/${problemID}/solutions/${solutionID}`, { method: "DELETE" });
-          setFlash(`Solution #${solutionID} deleted`, false);
-          return renderProblemSolutionManager(problemID);
-        } catch (err) {
-          setFlash(err.message, true);
-        }
-      });
-    });
+    setupSolutionEditor(problemID, activeScope, activeSolutionID, list);
   } catch (err) {
     app.innerHTML = `<div class="detail-card"><p>Load problem solutions failed: ${escapeHTML(err.message)}</p></div>`;
   }
 }
 
-function renderSolutionPreview(content) {
-  if (typeof renderMarkdownBlock === "function") {
-    return renderMarkdownBlock(content);
+function setupSolutionEditor(problemID, scope, selectedSolutionID, list) {
+  const form = document.getElementById("problem-solution-form");
+  const titleInput = form?.querySelector('[name="title"]');
+  const visibilityInput = form?.querySelector('[name="visibility"]');
+  const contentInput = form?.querySelector('[name="content"]');
+  const previewTitle = document.querySelector(".solution-preview-title");
+  const previewMeta = document.querySelector(".solution-preview-meta");
+  const previewBody = document.querySelector(".solution-preview-body");
+  let markdownEditor = null;
+
+  const refreshPreview = () => {
+    const title = titleInput?.value.trim() || "Untitled Solution";
+    const visibility = visibilityInput?.value || "public";
+    const authorID = form?.dataset.authorId || "";
+    if (previewTitle) previewTitle.textContent = title;
+    if (previewMeta) {
+      previewMeta.innerHTML = `
+        <span class="status-pill ${solutionVisibilityClass(visibility)}">${escapeHTML(visibility)}</span>
+        <span>${authorID ? "Author" : "Draft"}</span>
+      `;
+    }
+    if (previewBody && contentInput) {
+      previewBody.innerHTML = renderSolutionPreview(contentInput.value);
+    }
+  };
+
+  [titleInput, visibilityInput, contentInput].forEach((input) => {
+    input?.addEventListener("input", refreshPreview);
+    input?.addEventListener("change", refreshPreview);
+  });
+
+  const attachMarkdownEditor = () => {
+    if (!contentInput || typeof window.createSolutionMarkdownEditor !== "function") return;
+    markdownEditor = window.createSolutionMarkdownEditor(contentInput, {
+      onChange: refreshPreview,
+    });
+  };
+
+  if (window.codeMirrorReadyPromise) {
+    window.codeMirrorReadyPromise.then(attachMarkdownEditor).catch(() => {});
+  } else {
+    attachMarkdownEditor();
   }
-  return `<div class="problem-markdown">${escapeHTML(content || "No content.")}</div>`;
-}
 
-function setupSolutionMarkdownPreview() {
-  document.querySelectorAll(".solution-preview-tab").forEach((button) => {
-    button.addEventListener("click", () => {
-      const group = button.dataset.previewGroup;
-      const mode = button.dataset.previewMode;
-      const source = document.querySelector(`[data-preview-source="${group}"]`);
-      const target = document.querySelector(`[data-preview-target="${group}"]`);
-      if (!source || !target) return;
-
-      document.querySelectorAll(`[data-preview-group="${group}"]`).forEach((tab) => {
-        tab.classList.toggle("is-active", tab === button);
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const solutionID = String(form.dataset.solutionId || "").trim();
+    const method = solutionID ? "PUT" : "POST";
+    const path = solutionID ? `/problems/${problemID}/solutions/${solutionID}` : `/problems/${problemID}/solutions`;
+    try {
+      const result = await apiFetch(path, {
+        method,
+        body: JSON.stringify({
+          title: formData.get("title"),
+          visibility: formData.get("visibility"),
+          content: formData.get("content"),
+        }),
       });
-
-      if (mode === "preview") {
-        target.innerHTML = renderSolutionPreview(source.value);
-        source.classList.add("hidden");
-        target.classList.remove("hidden");
-      } else {
-        target.classList.add("hidden");
-        source.classList.remove("hidden");
-        source.focus();
+      setFlash(solutionID ? "Solution updated" : "Solution created", false);
+      const nextSolutionID = String(result?.id || solutionID || selectedSolutionID || "");
+      const nextHash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", nextSolutionID);
+      if (location.hash === nextHash) {
+        return renderProblemSolutionManager(problemID, scope);
       }
+      location.hash = nextHash;
+    } catch (err) {
+      setFlash(err.message, true);
+    }
+  });
+
+  document.querySelectorAll(".solution-load-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const solutionID = button.dataset.solutionId || "";
+      location.hash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", solutionID);
     });
   });
 
-  document.querySelectorAll(".solution-markdown-source").forEach((source) => {
-    source.addEventListener("input", () => {
-      const group = source.dataset.previewSource;
-      const target = document.querySelector(`[data-preview-target="${group}"]`);
-      if (target && !target.classList.contains("hidden")) {
-        target.innerHTML = renderSolutionPreview(source.value);
+  document.querySelectorAll(".solution-scope-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextScope = button.dataset.solutionScope || "my";
+      const nextSolutionID = button.dataset.solutionId || "";
+      location.hash = buildSolutionManagerHash(problemID, nextScope, nextSolutionID);
+    });
+  });
+
+  document.querySelectorAll(".solution-nav-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetSolutionID = button.dataset.solutionTarget || "";
+      if (!targetSolutionID) return;
+      location.hash = buildSolutionManagerHash(problemID, "all", targetSolutionID);
+    });
+  });
+
+  document.querySelectorAll(".solution-delete-button, .solution-delete-current").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const solutionID = button.dataset.solutionId;
+      const confirmed = window.confirm("Delete this solution?");
+      if (!confirmed) return;
+      try {
+        await apiFetch(`/problems/${problemID}/solutions/${solutionID}`, { method: "DELETE" });
+        setFlash("Solution deleted", false);
+        const nextSolutionID = scope === "all"
+          ? nextSolutionIDAfterDelete(list, solutionID, selectedSolutionID)
+          : "";
+        const nextHash = buildSolutionManagerHash(problemID, scope === "all" ? "all" : "my", nextSolutionID);
+        if (location.hash === nextHash) {
+          return renderProblemSolutionManager(problemID, scope);
+        }
+        location.hash = nextHash;
+      } catch (err) {
+        setFlash(err.message, true);
       }
     });
   });

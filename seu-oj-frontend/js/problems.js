@@ -436,6 +436,16 @@ function renderProblemCodeBlock(title, content) {
 }
 function renderProblemSolutions(solutions, problemID) {
   const list = solutions || [];
+  const manageButton = state.user?.role === "admin"
+    ? `
+      <div class="solution-manager-actions">
+        <a class="ghost-button" href="#/problems/${problemID}/solutions/manage?scope=all">Manage Solutions</a>
+        <a class="ghost-button" href="#/problems/${problemID}/solutions/manage?scope=my">My Solution</a>
+      </div>
+    `
+    : state.user
+      ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">My Solution</a>`
+      : "";
   return `
     <div class="detail-block">
       <div class="view-header compact">
@@ -443,7 +453,7 @@ function renderProblemSolutions(solutions, problemID) {
           <h3>Solutions</h3>
           <p class="view-subtitle">Editorial notes and official write-ups for this problem.</p>
         </div>
-        ${state.user ? `<a class="ghost-button" href="#/problems/${problemID}/solutions/manage">Manage Solutions</a>` : ""}
+        ${manageButton}
       </div>
       ${list.length ? `
         <div class="solution-stack">
@@ -452,7 +462,6 @@ function renderProblemSolutions(solutions, problemID) {
               <div class="view-header compact">
                 <div>
                   <h4 class="solution-title">${escapeHTML(item.title)}</h4>
-                  <p class="view-subtitle">Solution #${item.id}</p>
                 </div>
                 <span class="status-pill ${teachingVisibilityClass(item.visibility)}">${escapeHTML(item.visibility)}</span>
               </div>
@@ -488,7 +497,7 @@ function renderMarkdown(content) {
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    html.push(`<p>${renderInlineMarkdown(paragraph.join("<br>"))}</p>`);
+    html.push(`<p>${renderInlineMarkdown(paragraph.join("\n"))}</p>`);
     paragraph = [];
   };
 
@@ -584,6 +593,7 @@ function renderMarkdown(content) {
 function renderInlineMarkdown(input) {
   const escaped = escapeHTML(input);
   return escaped
+    .replace(/\r?\n/g, "<br>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^\*])\*([^*]+)\*/g, "$1<em>$2</em>")
