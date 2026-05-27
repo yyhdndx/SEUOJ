@@ -1,4 +1,4 @@
-﻿package api
+package api
 
 import (
 	"seu-oj-backend/internal/dto"

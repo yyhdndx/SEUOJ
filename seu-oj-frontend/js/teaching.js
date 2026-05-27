@@ -538,41 +538,76 @@ async function renderClasses() {
         </div>
       </div>
       ${renderTeachingSummaryCards(list)}
-      <section class="detail-grid" style="margin-top:18px;">
-        <article class="detail-card">
-          <h3>Join Class</h3>
-          <form id="join-class-form">
-            <label class="field-label">Join Code</label>
-            <input class="text-input" name="join_code" placeholder="e.g. ABCD1234" required />
-            <div class="view-subtitle" style="margin-top:8px;">Teachers distribute join codes to build classroom membership.</div>
-            <div style="margin-top:14px;"><button class="primary-button" type="submit">Join</button></div>
-          </form>
-        </article>
-        <aside class="detail-card">
+      <section class="detail-card classes-current-panel" style="margin-top:18px;">
+        <div class="view-header compact">
           <h3>Current Classes</h3>
-          ${list.length ? `
-            <div class="teaching-stack">
-              ${list.map((item) => `
-                <article class="teaching-list-card">
-                  <div class="view-header compact">
-                    <div>
-                      <h3 class="teaching-card-title"><a class="table-link" href="#/classes/${item.id}">${escapeHTML(item.name)}</a></h3>
-                      <p class="view-subtitle">Teacher ${escapeHTML(item.teacher_name)} / role ${escapeHTML(item.member_role || 'student')}</p>
-                    </div>
-                    <span class="status-pill ${teachingStatusClass(item.status)}">${escapeHTML(item.status)}</span>
+          <span class="status-pill status-neutral">${list.length}</span>
+        </div>
+        ${list.length ? `
+          <div class="teaching-stack">
+            ${list.map((item) => `
+              <article class="teaching-list-card">
+                <div class="view-header compact">
+                  <div>
+                    <h3 class="teaching-card-title"><a class="table-link" href="#/classes/${item.id}">${escapeHTML(item.name)}</a></h3>
+                    <p class="view-subtitle">Teacher ${escapeHTML(item.teacher_name)} / role ${escapeHTML(item.member_role || 'student')}</p>
                   </div>
-                  ${renderTeachingMetaList([
-                    { label: 'Assignments', value: String(item.assignment_count) },
-                    { label: 'Members', value: String(item.member_count) },
-                    { label: 'Created', value: item.created_at, mono: true },
-                  ])}
-                </article>
-              `).join("")}
-            </div>
-          ` : renderTeachingEmpty('No classes yet.')}
-        </aside>
+                  <span class="status-pill ${teachingStatusClass(item.status)}">${escapeHTML(item.status)}</span>
+                </div>
+                ${renderTeachingMetaList([
+                  { label: 'Assignments', value: String(item.assignment_count) },
+                  { label: 'Members', value: String(item.member_count) },
+                  { label: 'Created', value: item.created_at, mono: true },
+                ])}
+              </article>
+            `).join("")}
+          </div>
+        ` : renderTeachingEmpty('No classes yet.')}
       </section>
+      <button class="classes-join-fab" type="button" id="join-class-toggle">Join Class</button>
+      <div class="classes-join-popover hidden" id="join-class-popover">
+        <div class="classes-join-popover-head">
+          <h3>Join Class</h3>
+          <button class="classes-join-close" type="button" id="join-class-close" aria-label="Close join class form">&times;</button>
+        </div>
+        <form id="join-class-form">
+          <label class="field-label">Join Code</label>
+          <input class="text-input" name="join_code" placeholder="e.g. ABCD1234" required />
+          <div class="view-subtitle" style="margin-top:8px;">Teachers distribute join codes to build classroom membership.</div>
+          <div style="margin-top:14px;"><button class="primary-button" type="submit">Join</button></div>
+        </form>
+      </div>
     `;
+    const joinToggle = document.getElementById("join-class-toggle");
+    const joinPopover = document.getElementById("join-class-popover");
+    const joinClose = document.getElementById("join-class-close");
+    let joinOutsideHandler = null;
+    const closeJoinPopover = () => {
+      joinPopover?.classList.add("hidden");
+      if (joinOutsideHandler) {
+        document.removeEventListener("click", joinOutsideHandler);
+        joinOutsideHandler = null;
+      }
+    };
+    joinToggle?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!joinPopover) return;
+      const willOpen = joinPopover.classList.contains("hidden");
+      if (!willOpen) {
+        closeJoinPopover();
+        return;
+      }
+      joinPopover.classList.remove("hidden");
+      joinPopover.querySelector('[name="join_code"]')?.focus();
+      joinOutsideHandler = (outsideEvent) => {
+        const target = outsideEvent.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("#join-class-popover, #join-class-toggle")) return;
+        closeJoinPopover();
+      };
+      setTimeout(() => document.addEventListener("click", joinOutsideHandler), 0);
+    });
+    joinClose?.addEventListener("click", closeJoinPopover);
     document.getElementById("join-class-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);

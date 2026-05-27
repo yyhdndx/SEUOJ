@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,8 @@ import (
 )
 
 func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine {
-	engine := gin.Default()
+	engine := gin.New()
+	engine.Use(gin.Recovery())
 	engine.Use(middleware.CORS())
 	engine.Use(middleware.Timing())
 	cacheStore := cache.New(redisClient)
@@ -68,14 +70,21 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	teachingHandler := api.NewTeachingHandler(teachingService)
 
 	apiGroup := engine.Group("/api")
+	apiGroup.Use(middleware.AuditLog(db))
 	apiGroup.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"status": "ok"}})
 	})
 
 	authGroup := apiGroup.Group("/auth")
 	{
-		authGroup.POST("/register", authHandler.Register)
-		authGroup.POST("/login", authHandler.Login)
+		authLimit := middleware.RateLimit(middleware.RateLimitConfig{
+			Name:    "auth",
+			Limit:   10,
+			Window:  time.Minute,
+			KeyFunc: middleware.RateLimitKeyByIP,
+		})
+		authGroup.POST("/register", authLimit, authHandler.Register)
+		authGroup.POST("/login", authLimit, authHandler.Login)
 		authGroup.GET("/me", middleware.JWTAuth(cfg.Auth.JWTSecret), authHandler.Me)
 		authGroup.PUT("/profile", middleware.JWTAuth(cfg.Auth.JWTSecret), authHandler.UpdateProfile)
 		authGroup.PUT("/password", middleware.JWTAuth(cfg.Auth.JWTSecret), authHandler.ChangePassword)
@@ -125,7 +134,12 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	classGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
 	{
 		classGroup.GET("/my", teachingHandler.MyClasses)
-		classGroup.POST("/join", teachingHandler.JoinClass)
+		classGroup.POST("/join", middleware.RateLimit(middleware.RateLimitConfig{
+			Name:    "class-join",
+			Limit:   12,
+			Window:  time.Minute,
+			KeyFunc: middleware.RateLimitKeyByUserOrIP,
+		}), teachingHandler.JoinClass)
 		classGroup.GET("/:id", teachingHandler.ClassDetail)
 	}
 
@@ -164,10 +178,16 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	forumAuthGroup := apiGroup.Group("/forum")
 	forumAuthGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
 	{
-		forumAuthGroup.POST("/topics", forumHandler.CreateTopic)
+		forumWriteLimit := middleware.RateLimit(middleware.RateLimitConfig{
+			Name:    "forum-write",
+			Limit:   20,
+			Window:  time.Minute,
+			KeyFunc: middleware.RateLimitKeyByUserOrIP,
+		})
+		forumAuthGroup.POST("/topics", forumWriteLimit, forumHandler.CreateTopic)
 		forumAuthGroup.PUT("/topics/:id", forumHandler.UpdateTopic)
 		forumAuthGroup.DELETE("/topics/:id", forumHandler.DeleteTopic)
-		forumAuthGroup.POST("/topics/:id/replies", forumHandler.CreateReply)
+		forumAuthGroup.POST("/topics/:id/replies", forumWriteLimit, forumHandler.CreateReply)
 		forumAuthGroup.PUT("/replies/:id", forumHandler.UpdateReply)
 		forumAuthGroup.DELETE("/replies/:id", forumHandler.DeleteReply)
 		forumAuthGroup.POST("/topics/:id/like", forumHandler.LikeTopic)
@@ -179,8 +199,18 @@ func New(db *gorm.DB, redisClient *redis.Client, cfg config.Config) *gin.Engine 
 	submissionGroup := apiGroup.Group("/submissions")
 	submissionGroup.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
 	{
-		submissionGroup.POST("/run", submissionHandler.Run)
-		submissionGroup.POST("", submissionHandler.Create)
+		submissionGroup.POST("/run", middleware.RateLimit(middleware.RateLimitConfig{
+			Name:    "submission-run",
+			Limit:   20,
+			Window:  time.Minute,
+			KeyFunc: middleware.RateLimitKeyByUserOrIP,
+		}), submissionHandler.Run)
+		submissionGroup.POST("", middleware.RateLimit(middleware.RateLimitConfig{
+			Name:    "submission-create",
+			Limit:   30,
+			Window:  time.Minute,
+			KeyFunc: middleware.RateLimitKeyByUserOrIP,
+		}), submissionHandler.Create)
 		submissionGroup.GET("/my", submissionHandler.ListMy)
 		submissionGroup.GET("/:id", submissionHandler.Detail)
 	}

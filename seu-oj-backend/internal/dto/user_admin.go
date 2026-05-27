@@ -1,4 +1,4 @@
-﻿package dto
+package dto
 
 type AdminUserListQuery struct {
 	Page     int    `form:"page" binding:"omitempty,min=1"`

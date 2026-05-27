@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    request_id VARCHAR(64),
+    actor_id BIGINT UNSIGNED NULL,
+    actor_role VARCHAR(32),
+    action VARCHAR(128),
+    method VARCHAR(16) NOT NULL,
+    path VARCHAR(512) NOT NULL,
+    route VARCHAR(512),
+    status_code INT NOT NULL,
+    client_ip VARCHAR(64),
+    user_agent VARCHAR(255),
+    error_text TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_logs_request_id (request_id),
+    INDEX idx_audit_logs_actor_id (actor_id),
+    INDEX idx_audit_logs_actor_role (actor_role),
+    INDEX idx_audit_logs_action (action),
+    INDEX idx_audit_logs_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

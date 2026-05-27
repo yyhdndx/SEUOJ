@@ -29,6 +29,7 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&model.ForumReply{},
 		&model.ForumTopicLike{},
 		&model.ForumTopicFavorite{},
+		&model.AuditLog{},
 	); err != nil {
 		return nil, err
 	}

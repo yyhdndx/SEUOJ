@@ -93,13 +93,13 @@ function initNavMenus() {
       return;
     }
 
-    const clickedMenu = target.closest(".nav-menu");
+    const clickedMenu = target.closest(".nav-menu, .account-menu");
     if (!clickedMenu) {
       closeNavMenus();
       return;
     }
 
-    if (target.closest(".nav-menu-panel a")) {
+    if (target.closest(".nav-menu-panel a, .account-menu-panel a")) {
       closeNavMenus();
       return;
     }
@@ -115,7 +115,7 @@ function initNavMenus() {
 }
 
 function closeNavMenus(exceptMenu = null) {
-  document.querySelectorAll(".nav-menu[open]").forEach((menu) => {
+  document.querySelectorAll(".nav-menu[open], .account-menu[open]").forEach((menu) => {
     if (menu !== exceptMenu) {
       menu.open = false;
     }
