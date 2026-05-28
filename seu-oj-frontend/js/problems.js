@@ -76,9 +76,9 @@ async function renderProblemDetail(id) {
       state.runResult = null;
     }
     state.runResultPending = false;
-    const draft = readSubmissionDraft(problem.id);
+    const draft = await readInitialSubmissionDraft(problem.id);
     const selectedLanguage = draft?.language || "cpp";
-    const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
+    const initialCode = draft?.code ?? "";
     const sampleCases = Array.isArray(problem.testcases)
       ? problem.testcases.filter((item) => item.case_type === "sample")
       : [];
@@ -103,9 +103,6 @@ async function renderProblemDetail(id) {
                 <span class="problem-meta-chip">Time Limit ${problem.time_limit_ms ?? "-"} ms</span>
                 <span class="problem-meta-chip">Memory Limit ${problem.memory_limit_mb ?? "-"} MB</span>
               </div>
-              <div style="margin-top:10px;">
-                <a class="ghost-button" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
-              </div>
             </div>
           </div>
           <div class="pane-content">
@@ -113,6 +110,7 @@ async function renderProblemDetail(id) {
               ${renderProblemTabButton("description", "Description", currentTab)}
               ${renderProblemTabButton("solutions", "Solutions", currentTab)}
               ${renderProblemTabButton("submissions", "Submission History", currentTab)}
+              <a class="problem-tab problem-tab-link" href="#/forum?scope_type=problem&scope_id=${encodeURIComponent(problem.id)}">Discuss</a>
             </div>
             <section class="problem-tab-panel ${currentTab === "description" ? "is-active" : ""}" data-problem-panel="description" role="tabpanel">
               ${renderProblemBlock("", problem.description)}

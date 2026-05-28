@@ -1,24 +1,22 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
+	"net/http"
 
-	"seu-oj-backend/internal/response"
+	"github.com/gin-gonic/gin"
 )
 
 func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rawRole, exists := c.Get(ContextRoleKey)
 		if !exists {
-			response.Error(c, "missing user role")
-			c.Abort()
+			abortWithError(c, http.StatusUnauthorized, "missing user role")
 			return
 		}
 
 		role, ok := rawRole.(string)
 		if !ok || role != "admin" {
-			response.Error(c, "admin permission required")
-			c.Abort()
+			abortWithError(c, http.StatusForbidden, "admin permission required")
 			return
 		}
 

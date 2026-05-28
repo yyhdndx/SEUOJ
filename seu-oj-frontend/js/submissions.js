@@ -86,7 +86,7 @@ async function loadAndRenderMySubmissions() {
       </thead>
         <tbody>
           ${state.submissions.map((item) => `
-            <tr>
+            <tr class="submission-click-row" tabindex="0" role="link" data-submission-href="#/submissions/${item.id}">
               <td><a class="table-link" href="#/submissions/${item.id}">${item.id}</a></td>
               <td>${item.problem_id}</td>
               <td>${escapeHTML(state.problemTitleMap[item.problem_id] || "-")}</td>
@@ -124,6 +124,8 @@ async function loadAndRenderMySubmissions() {
   document.getElementById("clear-submission-filters").addEventListener("click", () => {
     location.hash = "#/submissions";
   });
+
+  initMySubmissionRowClicks();
 }
 
 function startSubmissionsPolling() {
@@ -159,6 +161,30 @@ function stopSubmissionsPolling() {
 
 function hasActiveSubmission() {
   return state.submissions.some((item) => isSubmissionPollingStatus(item.status));
+}
+
+function initMySubmissionRowClicks() {
+  document.querySelectorAll("tr.submission-click-row").forEach((row) => {
+    const href = row.dataset.submissionHref;
+    if (!href) {
+      return;
+    }
+
+    const go = (event) => {
+      if (event?.target?.closest?.("a, button, input, select, textarea")) {
+        return;
+      }
+      location.hash = href;
+    };
+
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        location.hash = href;
+      }
+    });
+  });
 }
 
 async function ensureProblemTitleMap() {
@@ -526,6 +552,36 @@ function readSubmissionDraft(problemID, language = "") {
   };
 }
 
+async function readInitialSubmissionDraft(problemID) {
+  const localDraft = readSubmissionDraft(problemID);
+  if (localDraft) {
+    return localDraft;
+  }
+  if (!state.token) {
+    return null;
+  }
+
+  try {
+    const query = new URLSearchParams({
+      page: "1",
+      page_size: "1",
+      problem_id: String(problemID),
+    });
+    const data = await apiFetch(`/submissions/my?${query.toString()}`, { method: "GET" });
+    const latestSubmission = data.list?.[0];
+    if (!latestSubmission) {
+      return null;
+    }
+
+    const detail = await apiFetch(`/submissions/${latestSubmission.id}`, { method: "GET" });
+    const language = detail.language || latestSubmission.language || "cpp";
+    saveSubmissionDraft(problemID, language, detail.code || "");
+    return readSubmissionDraft(problemID, language) || readSubmissionDraft(problemID);
+  } catch {
+    return null;
+  }
+}
+
 function readSubmissionDraftBundle(problemID) {
   try {
     const raw = localStorage.getItem(submissionDraftKey(problemID));
@@ -558,7 +614,7 @@ function readSubmissionDraftBundle(problemID) {
 
 function readSubmissionDraftCode(problemID, language) {
   const draft = readSubmissionDraft(problemID, language);
-  return draft ? draft.code : getDefaultCodeTemplate(language);
+  return draft ? draft.code : "";
 }
 
 function getProblemEditorValue(textarea) {

@@ -87,11 +87,80 @@
   background: rgba(255, 253, 248, 0.68);
 }
 
+.classes-current-panel {
+  position: relative;
+}
+
+.classes-join-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  border: 1px solid rgba(45, 91, 159, 0.24);
+  background: var(--accent, #2d5b9f);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 26px rgba(33, 52, 86, 0.22);
+}
+
+.classes-join-fab:hover {
+  background: var(--accent-deep, #1f477d);
+}
+
+.classes-join-popover {
+  position: fixed;
+  right: 24px;
+  bottom: 74px;
+  z-index: 31;
+  width: min(320px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 18px 44px rgba(37, 31, 20, 0.22);
+}
+
+.classes-join-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.classes-join-popover-head h3 {
+  margin: 0;
+}
+
+.classes-join-close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 @media (max-width: 960px) {
   .teaching-summary-grid,
   .teaching-card-grid,
   .teaching-meta-grid {
     grid-template-columns: 1fr;
+  }
+
+  .classes-join-fab {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .classes-join-popover {
+    right: 16px;
+    bottom: 64px;
   }
 }
 

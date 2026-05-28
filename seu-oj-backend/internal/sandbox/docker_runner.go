@@ -42,12 +42,6 @@ func NewRunner(cfg Config) *Runner {
 	if cfg.Image == "" {
 		cfg.Image = "gcc:13"
 	}
-	if cfg.CompileImage == "" {
-		cfg.CompileImage = cfg.Image
-	}
-	if cfg.RunImage == "" {
-		cfg.RunImage = cfg.Image
-	}
 	if cfg.CPUs == "" {
 		cfg.CPUs = "1.0"
 	}

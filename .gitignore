@@ -25,6 +25,8 @@ seu-oj-backend/logs/
 *.dylib
 *.test
 *.out
+coverage
+coverage.html
 coverage.out
 cover.out
 *.coverprofile

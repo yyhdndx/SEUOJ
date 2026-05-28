@@ -93,6 +93,19 @@
   font-size: 22px;
 }
 
+.submission-click-row {
+  cursor: pointer;
+}
+
+.submission-click-row:hover {
+  background: rgba(45, 91, 159, 0.05);
+}
+
+.submission-click-row:focus-visible {
+  outline: 2px solid var(--accent, #2d5b9f);
+  outline-offset: -2px;
+}
+
 @media (max-width: 960px) {
   .verdict-banner,
   .verdict-stats,

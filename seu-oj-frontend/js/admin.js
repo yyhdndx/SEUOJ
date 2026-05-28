@@ -76,9 +76,9 @@ async function renderAdminProblemDetail(id) {
       state.runResult = null;
     }
     state.runResultPending = false;
-    const draft = readSubmissionDraft(problem.id);
+    const draft = await readInitialSubmissionDraft(problem.id);
     const selectedLanguage = draft?.language || "cpp";
-    const initialCode = draft?.code || getDefaultCodeTemplate(selectedLanguage);
+    const initialCode = draft?.code ?? "";
     const sampleCases = Array.isArray(problem.testcases)
       ? problem.testcases.filter((item) => item.case_type === "sample")
       : [];
