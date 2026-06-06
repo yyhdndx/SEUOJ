@@ -148,6 +148,15 @@ func TestSubmissionListHelpers(t *testing.T) {
 	if resp.Total != 5 || len(resp.List) != 1 || *resp.List[0].RuntimeMS != 12 {
 		t.Fatalf("unexpected submission list response: %+v", resp)
 	}
+	if !isSubmissionPollingStatus("Pending") || !isSubmissionPollingStatus("Running") || isSubmissionPollingStatus("Accepted") {
+		t.Fatal("unexpected polling status classification")
+	}
+	if !submissionListHasPollingStatus([]dto.SubmissionListItem{{Status: "Running"}}) {
+		t.Fatal("expected active submission list to be detected")
+	}
+	if submissionListHasPollingStatus([]dto.SubmissionListItem{{Status: "Accepted"}, {Status: "Wrong Answer"}}) {
+		t.Fatal("did not expect terminal submission list to be active")
+	}
 }
 
 func TestContestHelperFunctions(t *testing.T) {

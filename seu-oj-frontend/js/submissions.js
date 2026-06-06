@@ -94,7 +94,7 @@ async function loadAndRenderMySubmissions() {
               <td>${item.contest_id ? `<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><a class="table-link" href="#/contests/${item.contest_id}">#${item.contest_id}</a>${renderContestModeBadge(item)}</div>` : "-"}</td>
               <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
               <td>${item.passed_count}/${item.total_count}</td>
-            <td>${item.runtime_ms ?? "-"}</td>
+            <td>${formatRuntimeMS(item.runtime_ms)}</td>
             <td class="mono">${escapeHTML(item.created_at)}</td>
           </tr>
         `).join("")}
@@ -130,6 +130,7 @@ async function loadAndRenderMySubmissions() {
 
 function startSubmissionsPolling() {
   stopSubmissionsPolling();
+  state.submissionsPollFailures = 0;
   if (!hasActiveSubmission()) {
     return;
   }
@@ -142,12 +143,16 @@ function startSubmissionsPolling() {
 
     try {
       await loadAndRenderMySubmissions();
+      state.submissionsPollFailures = 0;
       if (!hasActiveSubmission()) {
         stopSubmissionsPolling();
       }
     } catch (err) {
-      stopSubmissionsPolling();
-      setFlash(`Auto refresh failed: ${err.message}`, true);
+      state.submissionsPollFailures += 1;
+      if (state.submissionsPollFailures >= 3) {
+        stopSubmissionsPolling();
+        setFlash(`Auto refresh failed: ${err.message}`, true);
+      }
     }
   }, 3000);
 }
@@ -228,6 +233,10 @@ async function fetchSubmissionDetail(id) {
 }
 
 function renderSubmissionDetailView(detail) {
+  if (state.submissionCodeViewer) {
+    state.submissionCodeViewer.destroy();
+    state.submissionCodeViewer = null;
+  }
   const verdictTone = getVerdictTone(detail.status);
   const resultSummary = summarizeSubmissionResults(detail.results || []);
   const firstFailedTestcaseID = getFirstFailedTestcaseID(detail.results || []);
@@ -256,11 +265,11 @@ function renderSubmissionDetailView(detail) {
         </div>
         <div class="verdict-stat">
           <span class="verdict-stat-label">Runtime</span>
-          <span class="verdict-stat-value">${detail.runtime_ms ?? "-" } ms</span>
+          <span class="verdict-stat-value">${formatRuntimeMS(detail.runtime_ms)}</span>
         </div>
         <div class="verdict-stat">
           <span class="verdict-stat-label">Memory</span>
-          <span class="verdict-stat-value">${detail.memory_kb ?? "-" } KB</span>
+          <span class="verdict-stat-value">${formatMemoryKB(detail.memory_kb)}</span>
         </div>
         <div class="verdict-stat">
           <span class="verdict-stat-label">Judged</span>
@@ -286,7 +295,7 @@ function renderSubmissionDetailView(detail) {
     ` : ""}
     <section class="detail-grid">
       <article class="detail-card">
-        ${renderProblemBlock("Source Code", detail.code || "")}
+        ${renderSubmissionSourceBlock(detail)}
         ${detail.compile_info ? renderNoticeBlock("Compile Info", detail.compile_info) : ""}
         ${detail.error_message ? renderNoticeBlock("Error Message", detail.error_message) : ""}
         ${Array.isArray(detail.results) && detail.results.length ? `
@@ -309,7 +318,7 @@ function renderSubmissionDetailView(detail) {
                       ${item.testcase_id === firstFailedTestcaseID ? '<span class="fail-badge">first fail</span>' : ""}
                     </td>
                     <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
-                    <td>${item.runtime_ms ?? "-"}</td>
+                    <td>${formatRuntimeMS(item.runtime_ms)}</td>
                     <td>${escapeHTML(item.error_message || "-")}</td>
                   </tr>
                 `).join("")}
@@ -326,8 +335,8 @@ function renderSubmissionDetailView(detail) {
           ${detail.contest_id ? `<div class="metric"><span class="metric-label">Mode</span><span class="metric-value">${detail.is_practice ? "Practice" : "Official"}</span></div>` : ""}
           <div class="metric"><span class="metric-label">Status</span><span class="metric-value"><span class="status-pill ${statusClass(detail.status)}">${escapeHTML(detail.status)}</span></span></div>
           <div class="metric"><span class="metric-label">Passed Cases</span><span class="metric-value">${detail.passed_count}/${detail.total_count}</span></div>
-          <div class="metric"><span class="metric-label">Runtime</span><span class="metric-value">${detail.runtime_ms ?? "-"} ms</span></div>
-          <div class="metric"><span class="metric-label">Memory</span><span class="metric-value">${detail.memory_kb ?? "-"} KB</span></div>
+          <div class="metric"><span class="metric-label">Runtime</span><span class="metric-value">${formatRuntimeMS(detail.runtime_ms)}</span></div>
+          <div class="metric"><span class="metric-label">Memory</span><span class="metric-value">${formatMemoryKB(detail.memory_kb)}</span></div>
           <div class="metric"><span class="metric-label">Created</span><span class="metric-value mono">${escapeHTML(detail.created_at)}</span></div>
           <div class="metric"><span class="metric-label">Judged</span><span class="metric-value mono">${escapeHTML(detail.judged_at || "-")}</span></div>
         </div>
@@ -336,6 +345,7 @@ function renderSubmissionDetailView(detail) {
   `;
 
   document.getElementById("reuse-code-btn").addEventListener("click", () => reuseSubmissionCode(detail));
+  mountSubmissionCodeViewer(detail);
 }
 
 function renderSummaryCard(label, value, pillClass) {
@@ -401,6 +411,42 @@ function renderNoticeBlock(title, content) {
   `;
 }
 
+function renderSubmissionSourceBlock(detail) {
+  return `
+    <div class="detail-block submission-source-block">
+      <div class="view-header compact">
+        <div>
+          <h3>Source Code</h3>
+        </div>
+        <span class="status-pill status-neutral">${escapeHTML(detail.language || "code")}</span>
+      </div>
+      <textarea class="submission-source-textarea" id="submission-source-viewer" readonly spellcheck="false" data-language="${escapeHTML(detail.language || "cpp")}">${escapeHTML(detail.code || "")}</textarea>
+    </div>
+  `;
+}
+
+async function mountSubmissionCodeViewer(detail) {
+  const textarea = document.getElementById("submission-source-viewer");
+  if (!textarea) {
+    return null;
+  }
+
+  try {
+    await (window.codeMirrorReadyPromise || Promise.resolve());
+  } catch {
+    return null;
+  }
+
+  if (!document.body.contains(textarea) || typeof window.createReadonlyCodeViewer !== "function") {
+    return null;
+  }
+
+  state.submissionCodeViewer = window.createReadonlyCodeViewer(textarea, {
+    language: detail.language || textarea.dataset.language || "cpp",
+  });
+  return state.submissionCodeViewer;
+}
+
 function summarizeSubmissionResults(results) {
   const summary = {
     accepted: 0,
@@ -451,6 +497,7 @@ function getVerdictTone(status) {
 
 function syncSubmissionPolling(id, status) {
   stopSubmissionPolling();
+  state.submissionPollFailures = 0;
   if (!isSubmissionPollingStatus(status)) {
     return;
   }
@@ -463,14 +510,18 @@ function syncSubmissionPolling(id, status) {
 
     try {
       const latest = await fetchSubmissionDetail(id);
+      state.submissionPollFailures = 0;
       renderSubmissionDetailView(latest);
       if (!isSubmissionPollingStatus(latest.status)) {
         stopSubmissionPolling();
         setFlash(`Submission #${id} finished: ${latest.status}`, false);
       }
     } catch (err) {
-      stopSubmissionPolling();
-      setFlash(`Auto polling failed: ${err.message}`, true);
+      state.submissionPollFailures += 1;
+      if (state.submissionPollFailures >= 3) {
+        stopSubmissionPolling();
+        setFlash(`Auto polling failed: ${err.message}`, true);
+      }
     }
   }, 2000);
 }

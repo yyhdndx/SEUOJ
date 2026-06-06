@@ -10,12 +10,16 @@
   runResultPending: false,
   submissionPollTimer: null,
   submissionsPollTimer: null,
+  submissionPollFailures: 0,
+  submissionsPollFailures: 0,
   problemTitleMap: {},
   workbenchLeftWidth: Number(localStorage.getItem("seuoj_workbench_left_width")) || 48,
   runResultHeight: Number(localStorage.getItem("seuoj_run_result_height")) || 180,
   contestPollTimer: null,
   runResultUIAbort: null,
   problemCodeEditor: null,
+  submissionCodeViewer: null,
+  flashTimer: null,
 };
 
 const submissionLanguageOptions = [
@@ -175,6 +179,10 @@ async function refreshCurrentUser() {
 }
 
 function setFlash(message, isError = false) {
+  if (state.flashTimer) {
+    window.clearTimeout(state.flashTimer);
+    state.flashTimer = null;
+  }
   if (!message) {
     flash.className = "flash hidden";
     flash.innerHTML = "";
@@ -190,6 +198,21 @@ function setFlash(message, isError = false) {
     <button class="flash-close" type="button" aria-label="Close notification">Close</button>
   `;
   flash.querySelector(".flash-close")?.addEventListener("click", () => setFlash(""));
+  state.flashTimer = window.setTimeout(() => setFlash(""), isError ? 6000 : 3500);
+}
+
+function formatRuntimeMS(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  return `${value} ms`;
+}
+
+function formatMemoryKB(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  return `${value} KB`;
 }
 
 function renderFatalError(err, source = "unknown") {
@@ -316,6 +339,10 @@ async function renderRoute() {
   if (state.problemCodeEditor) {
     state.problemCodeEditor.destroy();
     state.problemCodeEditor = null;
+  }
+  if (state.submissionCodeViewer) {
+    state.submissionCodeViewer.destroy();
+    state.submissionCodeViewer = null;
   }
   stopSubmissionPolling();
   stopSubmissionsPolling();
@@ -777,7 +804,7 @@ function renderHomeContinueWork(latestSubmission, latestSubmissionDetail, latest
       </div>
       <div class="verdict-stats">
         <div class="verdict-stat"><span class="verdict-stat-label">Passed</span><span class="verdict-stat-value">${latestSubmission.passed_count}/${latestSubmission.total_count}</span></div>
-        <div class="verdict-stat"><span class="verdict-stat-label">Runtime</span><span class="verdict-stat-value">${latestSubmission.runtime_ms ?? "-"} ms</span></div>
+        <div class="verdict-stat"><span class="verdict-stat-label">Runtime</span><span class="verdict-stat-value">${formatRuntimeMS(latestSubmission.runtime_ms)}</span></div>
         <div class="verdict-stat"><span class="verdict-stat-label">Created</span><span class="verdict-stat-value mono" title="${escapeHTML(latestSubmission.created_at || "")}">${escapeHTML(formatDashboardTime(latestSubmission.created_at))}</span></div>
       </div>
       <div class="dashboard-verdict-actions">

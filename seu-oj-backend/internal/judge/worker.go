@@ -144,6 +144,7 @@ func (w *Worker) handleSubmission(ctx context.Context, submissionID uint64) erro
 	finalStatus := "Accepted"
 	passedCount := 0
 	totalRuntime := 0
+	var maxMemoryKB *int
 
 	for _, testcase := range activeCases {
 		runResult := w.sandboxRunner.Run(compileResult.Program, testcase.InputData, problem.TimeLimitMS)
@@ -165,13 +166,17 @@ func (w *Worker) handleSubmission(ctx context.Context, submissionID uint64) erro
 			TestcaseID:   testcase.ID,
 			Status:       runResult.Status,
 			RuntimeMS:    runResult.RuntimeMS,
-			MemoryKB:     nil,
+			MemoryKB:     runResult.MemoryKB,
 			ErrorMsg:     runResult.ErrorMsg,
 		}
 		results = append(results, result)
 
 		if runResult.RuntimeMS != nil {
 			totalRuntime += *runResult.RuntimeMS
+		}
+		if runResult.MemoryKB != nil && (maxMemoryKB == nil || *runResult.MemoryKB > *maxMemoryKB) {
+			memoryKB := *runResult.MemoryKB
+			maxMemoryKB = &memoryKB
 		}
 
 		if runResult.Status == "Accepted" {
@@ -190,6 +195,7 @@ func (w *Worker) handleSubmission(ctx context.Context, submissionID uint64) erro
 		PassedCount: passedCount,
 		TotalCount:  len(activeCases),
 		RuntimeMS:   &runtimeMS,
+		MemoryKB:    maxMemoryKB,
 	}, results)
 	if err != nil {
 		log.Printf("[judge-worker] submission=%d finalize failed: %v", submission.ID, err)
@@ -212,6 +218,7 @@ type submissionFinish struct {
 	PassedCount int
 	TotalCount  int
 	RuntimeMS   *int
+	MemoryKB    *int
 	CompileInfo string
 	ErrorMsg    string
 }
@@ -222,7 +229,7 @@ func (w *Worker) finishSubmission(submission *model.Submission, finish submissio
 	submission.PassedCount = finish.PassedCount
 	submission.TotalCount = finish.TotalCount
 	submission.RuntimeMS = finish.RuntimeMS
-	submission.MemoryKB = nil
+	submission.MemoryKB = finish.MemoryKB
 	submission.CompileInfo = finish.CompileInfo
 	submission.ErrorMsg = finish.ErrorMsg
 	submission.JudgedAt = &now

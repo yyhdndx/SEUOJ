@@ -120,7 +120,7 @@ func (s *SubmissionService) ListMySubmissions(ctx context.Context, userID uint64
 		uintFilterKey(contestID),
 		stringFilterKey(status),
 	)
-	return cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionListResponse, error) {
+	return s.getTerminalSubmissionList(ctx, key, func() (*dto.SubmissionListResponse, error) {
 		return s.listMySubmissions(userID, page, pageSize, problemID, contestID, status)
 	})
 }
@@ -128,7 +128,7 @@ func (s *SubmissionService) ListMySubmissions(ctx context.Context, userID uint64
 func (s *SubmissionService) listRecentMySubmissions(ctx context.Context, userID uint64, pageSize int) (*dto.SubmissionListResponse, error) {
 	const cachedLimit = 100
 	key := fmt.Sprintf("cache:submissions:user:%d:recent:limit%d", userID, cachedLimit)
-	cached, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionListResponse, error) {
+	cached, err := s.getTerminalSubmissionList(ctx, key, func() (*dto.SubmissionListResponse, error) {
 		submissions, err := s.submissionRepo.ListRecentByUserID(userID, 1, cachedLimit, nil, nil, nil)
 		if err != nil {
 			return nil, err
@@ -261,9 +261,7 @@ func (s *SubmissionService) ListPublicSubmissions(page, pageSize int, userID *ui
 
 func (s *SubmissionService) GetSubmissionDetail(ctx context.Context, requestUserID uint64, requestRole string, submissionID uint64) (*dto.SubmissionDetailResponse, error) {
 	key := fmt.Sprintf("cache:submissions:detail:%d", submissionID)
-	result, err := cache.GetOrSet(ctx, s.cache, key, 60*time.Second, func() (*dto.SubmissionDetailResponse, error) {
-		return s.getSubmissionDetail(submissionID)
-	})
+	result, err := s.getTerminalSubmissionDetail(ctx, key, submissionID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,8 +374,57 @@ func (s *SubmissionService) invalidateSubmissionCaches(userID uint64, contestID 
 	s.cache.DeletePrefixes(context.Background(), prefixes...)
 }
 
+func (s *SubmissionService) getTerminalSubmissionDetail(ctx context.Context, key string, submissionID uint64) (*dto.SubmissionDetailResponse, error) {
+	var cached dto.SubmissionDetailResponse
+	if s.cache != nil {
+		if ok, err := s.cache.GetJSON(ctx, key, &cached); err == nil && ok && !isSubmissionPollingStatus(cached.Status) {
+			return &cached, nil
+		}
+	}
+
+	result, err := s.getSubmissionDetail(submissionID)
+	if err != nil {
+		return nil, err
+	}
+	if s.cache != nil && !isSubmissionPollingStatus(result.Status) {
+		_ = s.cache.SetJSON(ctx, key, result, 60*time.Second)
+	}
+	return result, nil
+}
+
+func (s *SubmissionService) getTerminalSubmissionList(ctx context.Context, key string, load func() (*dto.SubmissionListResponse, error)) (*dto.SubmissionListResponse, error) {
+	var cached dto.SubmissionListResponse
+	if s.cache != nil {
+		if ok, err := s.cache.GetJSON(ctx, key, &cached); err == nil && ok && !submissionListHasPollingStatus(cached.List) {
+			return &cached, nil
+		}
+	}
+
+	result, err := load()
+	if err != nil {
+		return nil, err
+	}
+	if s.cache != nil && !submissionListHasPollingStatus(result.List) {
+		_ = s.cache.SetJSON(ctx, key, result, 60*time.Second)
+	}
+	return result, nil
+}
+
 func isUnfilteredRecentSubmissionQuery(page, pageSize int, problemID *uint64, contestID *uint64, status *string) bool {
 	return page == 1 && pageSize <= 100 && problemID == nil && contestID == nil && (status == nil || *status == "")
+}
+
+func isSubmissionPollingStatus(status string) bool {
+	return status == "Pending" || status == "Running"
+}
+
+func submissionListHasPollingStatus(list []dto.SubmissionListItem) bool {
+	for _, item := range list {
+		if isSubmissionPollingStatus(item.Status) {
+			return true
+		}
+	}
+	return false
 }
 
 func uintFilterKey(value *uint64) string {

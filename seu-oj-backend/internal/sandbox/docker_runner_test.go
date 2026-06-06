@@ -90,6 +90,37 @@ func TestBaseDockerArgs(t *testing.T) {
 	}
 }
 
+func TestResourceWrappedRunCmd(t *testing.T) {
+	cmd := resourceWrappedRunCmd([]string{"python3", "-B", "main.py"}, 1500)
+	joined := strings.Join(cmd, " ")
+
+	for _, expected := range []string{
+		"/bin/sh",
+		"__SEUOJ_RUNTIME_MS=",
+		"__SEUOJ_MEMORY_KB=%M",
+		"1.500s",
+		"python3 -B main.py",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected wrapped command to contain %q in %q", expected, joined)
+		}
+	}
+}
+
+func TestParseResourceStderr(t *testing.T) {
+	clean, resources := parseResourceStderr("program stderr\n__SEUOJ_MEMORY_KB=2048\n__SEUOJ_RUNTIME_MS=7\n")
+
+	if clean != "program stderr" {
+		t.Fatalf("unexpected clean stderr %q", clean)
+	}
+	if resources.RuntimeMS == nil || *resources.RuntimeMS != 7 {
+		t.Fatalf("unexpected runtime resource: %+v", resources.RuntimeMS)
+	}
+	if resources.MemoryKB == nil || *resources.MemoryKB != 2048 {
+		t.Fatalf("unexpected memory resource: %+v", resources.MemoryKB)
+	}
+}
+
 func TestLimitedBufferTracksTruncation(t *testing.T) {
 	buffer := newLimitedBuffer(5)
 	n, err := buffer.Write([]byte("abcdef"))
