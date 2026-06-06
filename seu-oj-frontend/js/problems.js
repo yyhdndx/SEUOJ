@@ -804,7 +804,7 @@ function renderProblemRecentSubmissions(problemID, submissions, contestID = null
               <td><a class="table-link" href="#/submissions/${item.id}">${item.id}</a></td>
               <td><span class="status-pill ${statusClass(item.status)}">${escapeHTML(item.status)}</span></td>
               <td>${item.passed_count}/${item.total_count}</td>
-              <td>${item.runtime_ms ?? "-"}</td>
+              <td>${formatRuntimeMS(item.runtime_ms)}</td>
               <td class="mono">${escapeHTML(item.created_at)}</td>
             </tr>
           `).join("")}

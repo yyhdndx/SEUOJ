@@ -103,6 +103,7 @@ type CompileResult struct {
 type RunResult struct {
 	Status    string
 	RuntimeMS *int
+	MemoryKB  *int
 	Output    string
 	ErrorMsg  string
 }
@@ -185,11 +186,11 @@ func (r *Runner) Run(program *CompiledProgram, input string, timeLimitMS int) Ru
 		timeLimitMS = 1000
 	}
 
-	timeout := time.Duration(timeLimitMS+r.cfg.RunTimeoutBufferMS) * time.Millisecond
+	timeout := time.Duration(timeLimitMS+r.cfg.RunTimeoutBufferMS)*time.Millisecond + 10*time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	args := append(r.baseDockerArgs(program.WorkDir, true, false, true, program.RunImage), program.RunCmd...)
+	args := append(r.baseDockerArgs(program.WorkDir, true, false, true, program.RunImage), resourceWrappedRunCmd(program.RunCmd, timeLimitMS)...)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Stdin = strings.NewReader(input)
 
@@ -201,17 +202,32 @@ func (r *Runner) Run(program *CompiledProgram, input string, timeLimitMS int) Ru
 	start := time.Now()
 	err := cmd.Run()
 	elapsed := int(time.Since(start).Milliseconds())
+	cleanStderr, resources := parseResourceStderr(stderr.String())
+	runtimeMS := resources.RuntimeMS
+	if runtimeMS == nil && err != nil && ctx.Err() == context.DeadlineExceeded {
+		runtimeMS = &timeLimitMS
+	}
 
 	if ctx.Err() == context.DeadlineExceeded {
 		return RunResult{
 			Status:    "Time Limit Exceeded",
-			RuntimeMS: &elapsed,
+			RuntimeMS: runtimeMS,
+			MemoryKB:  resources.MemoryKB,
+			Output:    stdout.String(),
+			ErrorMsg:  "time limit exceeded",
+		}
+	}
+	if isTimedOutRun(err, runtimeMS, timeLimitMS) {
+		return RunResult{
+			Status:    "Time Limit Exceeded",
+			RuntimeMS: runtimeMS,
+			MemoryKB:  resources.MemoryKB,
 			Output:    stdout.String(),
 			ErrorMsg:  "time limit exceeded",
 		}
 	}
 	if err != nil {
-		msg := strings.TrimSpace(stderr.String())
+		msg := strings.TrimSpace(cleanStderr)
 		if msg == "" {
 			msg = err.Error()
 		}
@@ -221,14 +237,16 @@ func (r *Runner) Run(program *CompiledProgram, input string, timeLimitMS int) Ru
 		if isInfrastructureError(msg, err) {
 			return RunResult{
 				Status:    "System Error",
-				RuntimeMS: &elapsed,
+				RuntimeMS: runtimeMS,
+				MemoryKB:  resources.MemoryKB,
 				Output:    stdout.String(),
 				ErrorMsg:  msg,
 			}
 		}
 		return RunResult{
 			Status:    "Runtime Error",
-			RuntimeMS: &elapsed,
+			RuntimeMS: runtimeMS,
+			MemoryKB:  resources.MemoryKB,
 			Output:    stdout.String(),
 			ErrorMsg:  msg,
 		}
@@ -240,15 +258,20 @@ func (r *Runner) Run(program *CompiledProgram, input string, timeLimitMS int) Ru
 		}
 		return RunResult{
 			Status:    "Runtime Error",
-			RuntimeMS: &elapsed,
+			RuntimeMS: runtimeMS,
+			MemoryKB:  resources.MemoryKB,
 			Output:    stdout.String(),
 			ErrorMsg:  msg,
 		}
 	}
 
+	if runtimeMS == nil {
+		runtimeMS = &elapsed
+	}
 	return RunResult{
 		Status:    "Accepted",
-		RuntimeMS: &elapsed,
+		RuntimeMS: runtimeMS,
+		MemoryKB:  resources.MemoryKB,
 		Output:    stdout.String(),
 	}
 }
@@ -440,6 +463,106 @@ func wrapInfrastructureError(message string) error {
 		message = "sandbox infrastructure error"
 	}
 	return errors.New(ErrInfrastructure.Error() + ": " + message)
+}
+
+const (
+	resourceRunScript = `limit="$1"
+shift
+read_memory_kb() {
+  for path in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max_usage_in_bytes; do
+    if [ -r "$path" ]; then
+      value=$(cat "$path" 2>/dev/null)
+      case "$value" in
+        ''|max) continue ;;
+      esac
+      echo $(((value + 1023) / 1024))
+      return 0
+    fi
+  done
+  return 1
+}
+start=$(date +%s%3N)
+if command -v /usr/bin/time >/dev/null 2>&1; then
+  if command -v timeout >/dev/null 2>&1; then
+    /usr/bin/time -f "__SEUOJ_MEMORY_KB=%M" -- timeout -s KILL "$limit" "$@"
+  else
+    /usr/bin/time -f "__SEUOJ_MEMORY_KB=%M" -- "$@"
+  fi
+else
+  if command -v timeout >/dev/null 2>&1; then
+    timeout -s KILL "$limit" "$@"
+  else
+    "$@"
+  fi
+fi
+code=$?
+end=$(date +%s%3N)
+memory_kb=$(read_memory_kb 2>/dev/null || true)
+if [ -n "$memory_kb" ]; then
+  echo "__SEUOJ_MEMORY_KB=$memory_kb" >&2
+fi
+echo "__SEUOJ_RUNTIME_MS=$((end-start))" >&2
+exit "$code"`
+	resourceRuntimePrefix = "__SEUOJ_RUNTIME_MS="
+	resourceMemoryPrefix  = "__SEUOJ_MEMORY_KB="
+)
+
+type runResources struct {
+	RuntimeMS *int
+	MemoryKB  *int
+}
+
+func resourceWrappedRunCmd(runCmd []string, timeLimitMS int) []string {
+	limit := fmt.Sprintf("%.3fs", float64(timeLimitMS)/1000)
+	wrapped := []string{"/bin/sh", "-c", resourceRunScript, "seuoj-runner", limit}
+	return append(wrapped, runCmd...)
+}
+
+func parseResourceStderr(value string) (string, runResources) {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	lines := strings.Split(value, "\n")
+	kept := make([]string, 0, len(lines))
+	resources := runResources{}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, resourceRuntimePrefix) {
+			resources.RuntimeMS = parseResourceInt(strings.TrimPrefix(trimmed, resourceRuntimePrefix))
+			continue
+		}
+		if strings.HasPrefix(trimmed, resourceMemoryPrefix) {
+			resources.MemoryKB = parseResourceInt(strings.TrimPrefix(trimmed, resourceMemoryPrefix))
+			continue
+		}
+		kept = append(kept, line)
+	}
+
+	return strings.TrimSpace(strings.Join(kept, "\n")), resources
+}
+
+func parseResourceInt(value string) *int {
+	value = strings.TrimSpace(value)
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return nil
+	}
+	return &parsed
+}
+
+func isTimedOutRun(err error, runtimeMS *int, timeLimitMS int) bool {
+	if err == nil || runtimeMS == nil || *runtimeMS < timeLimitMS {
+		return false
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+	switch exitErr.ExitCode() {
+	case 124, 137, 143:
+		return true
+	default:
+		return false
+	}
 }
 
 type limitedBuffer struct {

@@ -161,6 +161,47 @@ const solutionMarkdownEditorTheme = EditorView.theme({
   },
 });
 
+const readonlyCodeViewerTheme = EditorView.theme({
+  "&": {
+    minHeight: "360px",
+    fontSize: "13px",
+    color: "#1f252f",
+    backgroundColor: "#f7f4ed",
+    border: "1px solid #d8cbb0",
+    borderRadius: "8px",
+  },
+  ".cm-scroller": {
+    overflow: "auto",
+    fontFamily: '"IBM Plex Mono", "Consolas", monospace',
+    lineHeight: "1.6",
+  },
+  ".cm-content": {
+    padding: "14px 0",
+  },
+  ".cm-line": {
+    padding: "0 16px",
+  },
+  ".cm-gutters": {
+    backgroundColor: "#efe8d8",
+    color: "#766b57",
+    borderRight: "1px solid #d8cbb0",
+    borderTopLeftRadius: "8px",
+    borderBottomLeftRadius: "8px",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "transparent",
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor: "transparent",
+  },
+  ".cm-focused": {
+    outline: "none",
+  },
+  "&.cm-focused": {
+    borderColor: "#b08b47",
+  },
+});
+
 function normalizeEditorLanguage(language) {
   if (language === "c") {
     return "c";
@@ -292,6 +333,43 @@ function createProblemCodeEditor(textarea, options = {}) {
 }
 
 window.createProblemCodeEditor = createProblemCodeEditor;
+
+function createReadonlyCodeViewer(textarea, options = {}) {
+  if (!textarea) {
+    return null;
+  }
+
+  const initialLanguage = options.language || textarea.dataset.language || "cpp";
+  const host = document.createElement("div");
+  host.className = "submission-code-viewer-host";
+  textarea.insertAdjacentElement("beforebegin", host);
+  textarea.classList.add("is-codemirror-hidden");
+
+  const view = new EditorView({
+    state: EditorState.create({
+      doc: textarea.value,
+      extensions: [
+        basicSetup,
+        EditorState.readOnly.of(true),
+        EditorView.editable.of(false),
+        syntaxHighlighting(problemEditorHighlightStyle),
+        readonlyCodeViewerTheme,
+        getLanguageSupport(initialLanguage),
+      ],
+    }),
+    parent: host,
+  });
+
+  return {
+    destroy() {
+      view.destroy();
+      host.remove();
+      textarea.classList.remove("is-codemirror-hidden");
+    },
+  };
+}
+
+window.createReadonlyCodeViewer = createReadonlyCodeViewer;
 
 function createSolutionMarkdownEditor(textarea, options = {}) {
   if (!textarea) {

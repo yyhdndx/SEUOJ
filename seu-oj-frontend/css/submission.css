@@ -106,6 +106,34 @@
   outline-offset: -2px;
 }
 
+.submission-source-block .view-header {
+  margin-bottom: 10px;
+}
+
+.submission-source-textarea {
+  width: 100%;
+  min-height: 360px;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: #f7f4ed;
+  color: var(--ink);
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  resize: vertical;
+  tab-size: 4;
+}
+
+.submission-source-textarea.is-codemirror-hidden {
+  display: none;
+}
+
+.submission-code-viewer-host .cm-editor {
+  min-height: 360px;
+}
+
 @media (max-width: 960px) {
   .verdict-banner,
   .verdict-stats,
