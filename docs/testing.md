@@ -30,9 +30,16 @@ SQLite 只用于测试本地业务逻辑和 GORM 调用路径。生产数据库�
 
 在后端目录执行：
 
-```powershell
-cd "D:\desk\软件工程\SEUOJ\seu-oj-backend"
+```bash
+cd seu-oj-backend
 go test ./...
+```
+
+数据库连通性/初始化（读 `config/config.yaml`）：
+
+```bash
+go run ./cmd/db-init --ping
+go run ./cmd/db-init --check
 ```
 
 生成覆盖率：

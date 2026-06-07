@@ -71,3 +71,7 @@ func (r *SubmissionRepository) list(page, pageSize int, userID *uint64, problemI
 func (r *SubmissionRepository) Update(tx *gorm.DB, submission *model.Submission) error {
 	return tx.Save(submission).Error
 }
+
+func (r *SubmissionRepository) DeleteByID(id uint64) error {
+	return r.db.Delete(&model.Submission{}, id).Error
+}

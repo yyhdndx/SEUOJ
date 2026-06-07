@@ -14,6 +14,11 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, err
 	}
 	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Problem{},
+		&model.ProblemTestcase{},
+		&model.Submission{},
+		&model.SubmissionResult{},
 		&model.Announcement{},
 		&model.Contest{},
 		&model.ContestProblem{},

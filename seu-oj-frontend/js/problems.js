@@ -704,7 +704,6 @@ function renderSampleCaseList(sampleCases) {
       <div class="view-header" style="margin-bottom:10px;">
         <div>
           <h3 style="margin:0;">Sample #${index + 1}</h3>
-          <p class="view-subtitle">sort_order=${item.sort_order}, active=${item.is_active ? "true" : "false"}</p>
         </div>
       </div>
       <div class="grid-form">

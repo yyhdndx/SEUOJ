@@ -107,7 +107,11 @@ func (s *rateLimiterStore) allow(key string, limit int, window time.Duration, no
 	}
 
 	if bucket.Count >= limit {
-		return false, time.Until(bucket.ResetAt)
+		retryAfter := bucket.ResetAt.Sub(now)
+		if retryAfter < 0 {
+			retryAfter = 0
+		}
+		return false, retryAfter
 	}
 
 	bucket.Count++

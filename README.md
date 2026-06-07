@@ -27,34 +27,65 @@ SEU OJ 是一个面向课程教学、日常训练与竞赛组织的轻量级 Onl
 
 推荐先看：
 - [展示前检查清单](./docs/demo-checklist.md)
+- [数据库初始化指南](./docs/database-init.md)
+- [结项前修复记录](./docs/pre-delivery-fixes.md)
 - [后端接口文档](./docs/api.md)
 
-当前项目运行时通常需要：
-- MySQL
-- Redis
-- Docker
-- Web 服务：`go run .`
-- Judge Worker：`go run ./cmd/judge-worker`
+### 一键启动（推荐）
 
-后端目录：
+**第一步**：编辑 `seu-oj-backend/config/config.yaml`（数据库、Redis 等）。可从 `config.example.yaml` 复制。
+
+**第二步**：确保 MySQL、Redis、Docker 可用，然后在仓库根目录：
+
+```bash
+# Git Bash / WSL / Linux（推荐，已在 Windows Git Bash 验证）
+bash scripts/dev.sh
+```
+
+常用命令：
+
+```bash
+bash scripts/dev.sh --setup-only   # 仅检查/初始化，不启动
+bash scripts/stop-dev.sh           # 停止服务
+tail -f logs/web.log logs/worker.log
+```
+
+浏览器访问：http://127.0.0.1:8080/
+
+**Windows PowerShell**（若 Git Bash 不可用）：
+
 ```powershell
-cd "D:\desk\软件工程\SEUOJ\seu-oj-backend"
-go run .
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+# 或双击 scripts\start-dev.bat
 ```
 
-Worker 目录：
-```powershell
-cd "D:\desk\软件工程\SEUOJ\seu-oj-backend"
-go run ./cmd/judge-worker
-```
+脚本会自动：检查环境 → 读 `config.yaml` → 用 `go run ./cmd/db-init` 初始化数据库（无需 mysql CLI）→ 安装 CodeMirror → 启动 Web + Worker。
 
-浏览器访问：
-```text
-http://127.0.0.1:8080/
-```
+详见 [scripts/README.md](./scripts/README.md)。
+
+### 手动分步（不用一键脚本时）
+
+1. 配置：复制并编辑 `seu-oj-backend/config/config.yaml`
+2. 数据库：`cd seu-oj-backend && go run ./cmd/db-init`（详见 [database-init.md](./docs/database-init.md)）
+3. CodeMirror：`cd seu-oj-frontend/CodeMirror && npm install`
+4. 启动（需两个终端）：
+   ```bash
+   cd seu-oj-backend
+   go run .
+   go run ./cmd/judge-worker
+   ```
+
+### 日常启动
+
+优先使用 `bash scripts/dev.sh` 或 `dev.ps1` / `start-dev.bat`。
+
+手动启动时需**同时**运行 Web 与 Judge Worker，否则 Submit 会卡在 Pending。
 
 ## 文档索引
 
+- [结项前修复记录](./docs/pre-delivery-fixes.md)：P0/P1 问题修复说明
+- [数据库初始化指南](./docs/database-init.md)：MySQL schema 与 seed 执行顺序
+- [开发脚本说明](./scripts/README.md)：一键启动 `dev.sh` / `dev.ps1`
 - [STORY-001 交付说明（比赛页 / 榜单 UX）](./stories/deliveries/STORY-001-contest-ranklist-ux.md)
 - [STORY-005 交付说明（题单训练进度 / Playlists）](./stories/deliveries/STORY-005-playlist-training-progress.md)
 - [docs/api.md](./docs/api.md)：后端接口文档

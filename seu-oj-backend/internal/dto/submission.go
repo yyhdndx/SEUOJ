@@ -6,7 +6,7 @@ type CreateSubmissionRequest struct {
 	ProblemID uint64  `json:"problem_id" binding:"required,min=1"`
 	ContestID *uint64 `json:"contest_id"`
 	Language  string  `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
-	Code      string  `json:"code" binding:"required"`
+	Code      string  `json:"code" binding:"required,max=65535"`
 }
 
 type SubmissionListQuery struct {
@@ -32,7 +32,7 @@ type RunSubmissionRequest struct {
 	ProblemID uint64  `json:"problem_id" binding:"required,min=1"`
 	ContestID *uint64 `json:"contest_id"`
 	Language  string  `json:"language" binding:"required,oneof=cpp c java python3 go rust"`
-	Code      string  `json:"code" binding:"required"`
+	Code      string  `json:"code" binding:"required,max=65535"`
 }
 
 type RunSubmissionCaseResult struct {
