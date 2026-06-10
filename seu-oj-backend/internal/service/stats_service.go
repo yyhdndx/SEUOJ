@@ -119,13 +119,25 @@ func (s *StatsService) my(userID uint64) (*dto.UserStatsResponse, error) {
 	resp.LanguageBreakdown = languageRows
 
 	var recentRows []dto.RecentActivityItem
-	if err := s.db.Model(&model.Submission{}).
-		Select("DATE_FORMAT(created_at, '%Y-%m-%d') as date, COUNT(*) as count").
-		Where("user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)", userID).
-		Group("DATE_FORMAT(created_at, '%Y-%m-%d')").
-		Order("date ASC").
-		Scan(&recentRows).Error; err != nil {
-		return nil, err
+	recentQuery := s.db.Model(&model.Submission{}).Where("user_id = ?", userID)
+	if s.db.Dialector.Name() == "sqlite" {
+		if err := recentQuery.
+			Select("strftime('%Y-%m-%d', created_at) as date, COUNT(*) as count").
+			Where("created_at >= datetime('now', '-14 days')").
+			Group("strftime('%Y-%m-%d', created_at)").
+			Order("date ASC").
+			Scan(&recentRows).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		if err := recentQuery.
+			Select("DATE_FORMAT(created_at, '%Y-%m-%d') as date, COUNT(*) as count").
+			Where("created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)").
+			Group("DATE_FORMAT(created_at, '%Y-%m-%d')").
+			Order("date ASC").
+			Scan(&recentRows).Error; err != nil {
+			return nil, err
+		}
 	}
 	resp.RecentActivity = recentRows
 

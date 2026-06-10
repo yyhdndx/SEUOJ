@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -196,6 +198,66 @@ func TestRouterHealthIntegration(t *testing.T) {
 	engine := New(openRouterTestDB(t), nil, routerTestConfig())
 
 	resp := doJSON(t, engine, http.MethodGet, "/api/health", "", nil, http.StatusOK)
+	expectAppCode(t, resp, 0)
+}
+
+func TestSubmissionLifecycleIntegration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mr := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = redisClient.Close() })
+
+	db := openRouterTestDB(t)
+	engine := New(db, redisClient, routerTestConfig())
+	adminToken := seedRouterUserAndToken(t, db, "admin", "admin")
+	studentToken := seedRouterUserAndToken(t, db, "student", "student")
+
+	resp := doJSON(t, engine, http.MethodPost, "/api/admin/problems", adminToken, problemPayload("SUB-R1", "Submit Me", 1, true), http.StatusOK)
+	expectAppCode(t, resp, 0)
+	created := decodeData[struct {
+		ProblemID uint64 `json:"problem_id"`
+	}](t, resp)
+
+	resp = doJSON(t, engine, http.MethodPost, "/api/submissions", studentToken, map[string]any{
+		"problem_id": created.ProblemID,
+		"language":   "cpp",
+		"code":       "#include <iostream>\nint main() { return 0; }",
+	}, http.StatusOK)
+	expectAppCode(t, resp, 0)
+	submitted := decodeData[struct {
+		SubmissionID uint64 `json:"submission_id"`
+		Status       string `json:"status"`
+	}](t, resp)
+	if submitted.SubmissionID == 0 || submitted.Status != "Pending" {
+		t.Fatalf("unexpected create submission response: %+v", submitted)
+	}
+
+	resp = doJSON(t, engine, http.MethodGet, "/api/submissions/my?page=1&page_size=10", studentToken, nil, http.StatusOK)
+	expectAppCode(t, resp, 0)
+	myList := decodeData[struct {
+		Total int64 `json:"total"`
+		List  []struct {
+			ID uint64 `json:"id"`
+		} `json:"list"`
+	}](t, resp)
+	if myList.Total != 1 || len(myList.List) != 1 || myList.List[0].ID != submitted.SubmissionID {
+		t.Fatalf("unexpected my submissions: %+v", myList)
+	}
+
+	resp = doJSON(t, engine, http.MethodGet, fmt.Sprintf("/api/submissions/%d", submitted.SubmissionID), studentToken, nil, http.StatusOK)
+	expectAppCode(t, resp, 0)
+	detail := decodeData[struct {
+		ID     uint64 `json:"id"`
+		Status string `json:"status"`
+	}](t, resp)
+	if detail.ID != submitted.SubmissionID || detail.Status != "Pending" {
+		t.Fatalf("unexpected submission detail: %+v", detail)
+	}
+
+	resp = doJSON(t, engine, http.MethodPost, fmt.Sprintf("/api/admin/submissions/%d/rejudge", submitted.SubmissionID), studentToken, nil, http.StatusForbidden)
+	expectAppCode(t, resp, 1)
+
+	resp = doJSON(t, engine, http.MethodPost, fmt.Sprintf("/api/admin/submissions/%d/rejudge", submitted.SubmissionID), adminToken, nil, http.StatusOK)
 	expectAppCode(t, resp, 0)
 }
 

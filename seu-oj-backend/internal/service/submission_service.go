@@ -209,8 +209,12 @@ func (s *SubmissionService) ListPublicSubmissions(page, pageSize int, userID *ui
 			s.created_at,
 			s.judged_at
 		`).
-		Where("p.visible = ?", true).
-		Where("(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= NOW())))", true)
+		Where("p.visible = ?", true)
+	contestFilter := "(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= NOW())))"
+	if s.db.Dialector.Name() == "sqlite" {
+		contestFilter = "(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= datetime('now'))))"
+	}
+	query = query.Where(contestFilter, true)
 	if userID != nil {
 		query = query.Where("s.user_id = ?", *userID)
 	}

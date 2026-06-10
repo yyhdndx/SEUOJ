@@ -70,6 +70,13 @@ func TestProblemRepositoryCRUDAndListFilters(t *testing.T) {
 	if total != 3 || len(all) != 3 || all[0].DisplayID != "C300" {
 		t.Fatalf("unexpected all list total=%d list=%+v", total, all)
 	}
+	visibleOnly, total, err := repo.List(1, 10, "Hidden", false)
+	if err != nil {
+		t.Fatalf("list visible keyword: %v", err)
+	}
+	if total != 0 || len(visibleOnly) != 0 {
+		t.Fatalf("expected hidden problem excluded, got total=%d", total)
+	}
 
 	problem, err := repo.GetByID(problems[0].ID)
 	if err != nil {
@@ -221,5 +228,20 @@ func TestSubmissionRepositoriesFilterUpdateAndReplaceResults(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Fatalf("expected cleared results, got %+v", list)
+	}
+
+	if err := submissionRepo.DeleteByID(submissions[2].ID); err != nil {
+		t.Fatalf("delete submission: %v", err)
+	}
+	if _, err := submissionRepo.GetByID(submissions[2].ID); err == nil {
+		t.Fatal("expected deleted submission missing")
+	}
+
+	adminList, total, err := submissionRepo.List(1, 10, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("admin list: %v", err)
+	}
+	if total != 2 || len(adminList) != 2 {
+		t.Fatalf("unexpected admin list total=%d len=%d", total, len(adminList))
 	}
 }
