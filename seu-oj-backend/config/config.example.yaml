@@ -1,0 +1,38 @@
+# Copy this file to config/config.yaml and adjust values for your environment.
+# Environment variables override these settings (see internal/config/config.go).
+
+server:
+  host: "0.0.0.0"
+  port: "8080"
+
+database:
+  host: "127.0.0.1"
+  port: "3306"
+  user: "root"
+  password: ""
+  name: "seu_oj"
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+auth:
+  # Change this before any shared or production deployment.
+  jwt_secret: "change-me-before-demo"
+
+sandbox:
+  docker_image: "gcc:13"
+  compile_image: ""
+  run_image: ""
+  user: "65534:65534"
+  cpus: "1.0"
+  memory_mb: 256
+  pids_limit: 64
+  tmpfs_mb: 64
+  file_size_kb: 1024
+  output_limit_kb: 256
+  compile_output_kb: 256
+  read_only_rootfs: true
+  compile_timeout_sec: 15
+  run_timeout_buffer_ms: 500

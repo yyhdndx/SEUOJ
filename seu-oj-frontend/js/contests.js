@@ -373,7 +373,6 @@ async function renderContestProblemDetail(contestID, problemID) {
             ${sampleCases.length ? `
               <div class="detail-block">
                 <h3>Sample Testcases</h3>
-                <p class="view-subtitle">${sampleCases.length} sample case(s) are available.</p>
                 ${renderSampleCaseList(sampleCases)}
               </div>
             ` : ""}

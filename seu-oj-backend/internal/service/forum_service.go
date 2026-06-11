@@ -50,8 +50,12 @@ func (s *ForumService) ListTopics(page, pageSize int, keyword, scopeType string,
 }
 
 func (s *ForumService) listTopics(page, pageSize int, keyword, scopeType string, scopeID *uint64) (*dto.ForumTopicListResponse, error) {
+	contentPreview := "LEFT(t.content, 160)"
+	if s.db.Dialector.Name() == "sqlite" {
+		contentPreview = "SUBSTR(t.content, 1, 160)"
+	}
 	query := s.db.Table("forum_topics t").
-		Select("t.id, t.title, LEFT(t.content, 160) AS content_preview, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.like_count, t.favorite_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at").
+		Select(fmt.Sprintf("t.id, t.title, %s AS content_preview, t.scope_type, t.scope_id, t.author_id, u.username AS author_name, t.reply_count, t.like_count, t.favorite_count, t.is_pinned, t.is_locked, t.last_reply_at, t.created_at, t.updated_at", contentPreview)).
 		Joins("JOIN users u ON u.id = t.author_id")
 	if scopeType = strings.TrimSpace(scopeType); scopeType != "" {
 		query = query.Where("t.scope_type = ?", scopeType)
@@ -268,10 +272,10 @@ func (s *ForumService) DeleteReply(userID uint64, role string, replyID uint64) e
 		if err := tx.Delete(&reply).Error; err != nil {
 			return err
 		}
-		updates := map[string]any{"reply_count": gorm.Expr("GREATEST(reply_count - 1, 0)")}
-		var latest time.Time
-		if err := tx.Model(&model.ForumReply{}).Where("topic_id = ?", reply.TopicID).Select("MAX(created_at)").Scan(&latest).Error; err == nil && !latest.IsZero() {
-			updates["last_reply_at"] = latest
+		updates := map[string]any{"reply_count": gorm.Expr("CASE WHEN reply_count > 0 THEN reply_count - 1 ELSE 0 END")}
+		var latest model.ForumReply
+		if err := tx.Where("topic_id = ?", reply.TopicID).Order("created_at DESC").First(&latest).Error; err == nil {
+			updates["last_reply_at"] = latest.CreatedAt
 		} else {
 			updates["last_reply_at"] = nil
 		}
@@ -335,7 +339,7 @@ func (s *ForumService) UnlikeTopic(ctx context.Context, topicID, userID uint64) 
 	if result.RowsAffected == 0 {
 		return nil
 	}
-	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("like_count", gorm.Expr("GREATEST(like_count - 1, 0)"))
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END"))
 	s.invalidate()
 	return nil
 }
@@ -357,7 +361,7 @@ func (s *ForumService) UnfavoriteTopic(ctx context.Context, topicID, userID uint
 	if result.RowsAffected == 0 {
 		return nil
 	}
-	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("favorite_count", gorm.Expr("GREATEST(favorite_count - 1, 0)"))
+	s.db.WithContext(ctx).Model(&model.ForumTopic{}).Where("id = ?", topicID).UpdateColumn("favorite_count", gorm.Expr("CASE WHEN favorite_count > 0 THEN favorite_count - 1 ELSE 0 END"))
 	s.invalidate()
 	return nil
 }

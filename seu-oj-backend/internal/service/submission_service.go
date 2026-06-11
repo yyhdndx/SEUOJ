@@ -100,6 +100,10 @@ func (s *SubmissionService) CreateSubmission(userID uint64, role string, req dto
 	s.invalidateSubmissionCaches(userID, req.ContestID, submission.ID)
 
 	if err := s.judgeQueue.EnqueueSubmission(context.Background(), submission.ID); err != nil {
+		if markErr := s.markEnqueueFailure(submission.ID); markErr != nil {
+			_ = s.submissionRepo.DeleteByID(submission.ID)
+		}
+		s.invalidateSubmissionCaches(userID, req.ContestID, submission.ID)
 		return 0, "", ErrQueueEnqueueFailed
 	}
 
@@ -152,14 +156,6 @@ func (s *SubmissionService) listRecentMySubmissions(ctx context.Context, userID 
 }
 
 func (s *SubmissionService) listMySubmissions(userID uint64, page, pageSize int, problemID *uint64, contestID *uint64, status *string) (*dto.SubmissionListResponse, error) {
-	if page == 1 && pageSize <= 20 {
-		submissions, err := s.submissionRepo.ListRecentByUserID(userID, page, pageSize, problemID, contestID, status)
-		if err != nil {
-			return nil, err
-		}
-		return toSubmissionListResponse(submissions, int64(len(submissions)), page, pageSize), nil
-	}
-
 	submissions, total, err := s.submissionRepo.ListByUserID(userID, page, pageSize, problemID, contestID, status)
 	if err != nil {
 		return nil, err
@@ -213,8 +209,12 @@ func (s *SubmissionService) ListPublicSubmissions(page, pageSize int, userID *ui
 			s.created_at,
 			s.judged_at
 		`).
-		Where("p.visible = ?", true).
-		Where("(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= NOW())))", true)
+		Where("p.visible = ?", true)
+	contestFilter := "(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= NOW())))"
+	if s.db.Dialector.Name() == "sqlite" {
+		contestFilter = "(s.contest_id IS NULL OR EXISTS (SELECT 1 FROM contests c WHERE c.id = s.contest_id AND c.is_public = ? AND (c.ranklist_freeze_at IS NULL OR s.created_at < c.ranklist_freeze_at OR c.end_time <= datetime('now'))))"
+	}
+	query = query.Where(contestFilter, true)
 	if userID != nil {
 		query = query.Where("s.user_id = ?", *userID)
 	}
@@ -352,10 +352,23 @@ func (s *SubmissionService) RejudgeSubmission(requestRole string, submissionID u
 	s.invalidateSubmissionCaches(submission.UserID, submission.ContestID, submission.ID)
 
 	if err := s.judgeQueue.EnqueueSubmission(context.Background(), submission.ID); err != nil {
+		if markErr := s.markEnqueueFailure(submission.ID); markErr != nil {
+			return 0, "", ErrQueueEnqueueFailed
+		}
+		s.invalidateSubmissionCaches(submission.UserID, submission.ContestID, submission.ID)
 		return 0, "", ErrQueueEnqueueFailed
 	}
 
 	return submission.ID, submission.Status, nil
+}
+
+func (s *SubmissionService) markEnqueueFailure(submissionID uint64) error {
+	now := time.Now()
+	return s.db.Model(&model.Submission{}).Where("id = ?", submissionID).Updates(map[string]any{
+		"status":        "System Error",
+		"error_message": "judge queue unavailable",
+		"judged_at":     now,
+	}).Error
 }
 
 func (s *SubmissionService) invalidateSubmissionCaches(userID uint64, contestID *uint64, submissionID uint64) {

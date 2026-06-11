@@ -59,6 +59,67 @@ func openServiceTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// migrateTeachingTablesSQLite creates teaching-related tables with TEXT columns
+// because GORM's MySQL enum tags are incompatible with SQLite AutoMigrate.
+func migrateTeachingTablesSQLite(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	ddl := []string{
+		`CREATE TABLE IF NOT EXISTS playlists (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			description TEXT,
+			visibility TEXT NOT NULL DEFAULT 'public',
+			created_by INTEGER NOT NULL,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS playlist_problems (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			playlist_id INTEGER NOT NULL,
+			problem_id INTEGER NOT NULL,
+			display_order INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS classes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			description TEXT,
+			join_code TEXT NOT NULL UNIQUE,
+			teacher_id INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'active',
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS class_members (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			class_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			role TEXT NOT NULL DEFAULT 'student',
+			status TEXT NOT NULL DEFAULT 'active',
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+		`CREATE TABLE IF NOT EXISTS assignments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			class_id INTEGER NOT NULL,
+			playlist_id INTEGER NOT NULL,
+			title TEXT NOT NULL,
+			description TEXT,
+			type TEXT NOT NULL DEFAULT 'homework',
+			start_at DATETIME,
+			due_at DATETIME,
+			created_by INTEGER NOT NULL,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`,
+	}
+	for _, stmt := range ddl {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("migrate teaching table: %v", err)
+		}
+	}
+}
+
 func TestAuthServiceLifecycle(t *testing.T) {
 	db := openServiceTestDB(t)
 	service := NewAuthService(db, "secret")
@@ -172,12 +233,26 @@ func TestProblemServiceLifecycleStatsAndSolutions(t *testing.T) {
 	if recentList.Total != 1 || len(recentList.List) != 1 {
 		t.Fatalf("unexpected recent problem list: %+v", recentList)
 	}
+	pagedList, err := service.ListProblems(context.Background(), 2, 10, "Sum")
+	if err != nil {
+		t.Fatalf("paged problem list: %v", err)
+	}
+	if pagedList.Page != 2 || pagedList.PageSize != 10 {
+		t.Fatalf("unexpected paged list meta: %+v", pagedList)
+	}
 	publicDetail, err := service.GetProblemDetail(id)
 	if err != nil {
 		t.Fatalf("public detail: %v", err)
 	}
 	if len(publicDetail.Testcases) != 1 || publicDetail.Testcases[0].CaseType != "sample" {
 		t.Fatalf("expected only active sample testcases, got %+v", publicDetail.Testcases)
+	}
+	viaPublic, err := service.PublicProblemDetail(id)
+	if err != nil {
+		t.Fatalf("public problem detail alias: %v", err)
+	}
+	if viaPublic.DisplayID != publicDetail.DisplayID {
+		t.Fatalf("PublicProblemDetail mismatch: %+v vs %+v", viaPublic, publicDetail)
 	}
 
 	submissions := []model.Submission{
@@ -366,6 +441,10 @@ func TestContestServiceLifecycle(t *testing.T) {
 	if list.Total != 1 || len(list.List) != 1 || list.List[0].Status != "running" {
 		t.Fatalf("unexpected contest list: %+v", list)
 	}
+	recentList, err := service.List(context.Background(), 1, 10, "", "")
+	if err != nil || recentList.Total != 1 {
+		t.Fatalf("recent contest list: err=%v list=%+v", err, recentList)
+	}
 	detail, err := service.GetByID(contestID)
 	if err != nil {
 		t.Fatalf("contest detail: %v", err)
@@ -402,9 +481,45 @@ func TestContestServiceLifecycle(t *testing.T) {
 		t.Fatalf("unexpected contest problem list: %+v", problems)
 	}
 
+	problemDetail, err := service.GetProblemDetail(user.ID, "student", contestID, problem.ID)
+	if err != nil {
+		t.Fatalf("contest problem detail: %v", err)
+	}
+	if problemDetail.DisplayID != "A100" {
+		t.Fatalf("unexpected contest problem detail: %+v", problemDetail)
+	}
+	if err := service.ValidateProblemAccess(user.ID, "student", contestID, problem.ID); err != nil {
+		t.Fatalf("validate problem access: %v", err)
+	}
+
+	adminList, err := service.ListAdmin("admin", 1, 20, "Weekly", "running")
+	if err != nil {
+		t.Fatalf("admin contest list: %v", err)
+	}
+	if adminList.Total != 1 {
+		t.Fatalf("unexpected admin contest list: %+v", adminList)
+	}
+	if _, err := service.ListAdmin("student", 1, 20, "", ""); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("expected admin list permission denied, got %v", err)
+	}
+
+	adminAnnouncements, err := service.ListAdminAnnouncements("admin", contestID, 1, 20)
+	if err != nil {
+		t.Fatalf("admin announcement list: %v", err)
+	}
+	if adminAnnouncements.Total != 0 {
+		t.Fatalf("unexpected admin announcements before create: %+v", adminAnnouncements)
+	}
+
 	announcementID, err := service.CreateAnnouncement(1, "admin", contestID, dto.CreateContestAnnouncementRequest{Title: "Pinned", Content: "Read me", IsPinned: true})
 	if err != nil {
 		t.Fatalf("create contest announcement: %v", err)
+	}
+	if _, err := service.GetAdminAnnouncement("admin", contestID, announcementID); err != nil {
+		t.Fatalf("get admin announcement: %v", err)
+	}
+	if _, err := service.GetAdminAnnouncement("student", contestID, announcementID); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("expected admin announcement permission denied, got %v", err)
 	}
 	announcements, err := service.ListAnnouncements(contestID, 1, 20)
 	if err != nil {
@@ -412,6 +527,13 @@ func TestContestServiceLifecycle(t *testing.T) {
 	}
 	if announcements.Total != 1 || announcements.List[0].ID != announcementID {
 		t.Fatalf("unexpected contest announcements: %+v", announcements)
+	}
+	adminAnnouncements, err = service.ListAdminAnnouncements("admin", contestID, 1, 20)
+	if err != nil {
+		t.Fatalf("admin announcement list after create: %v", err)
+	}
+	if adminAnnouncements.Total != 1 {
+		t.Fatalf("unexpected admin announcements: %+v", adminAnnouncements)
 	}
 	if err := service.UpdateAnnouncement("admin", contestID, announcementID, dto.CreateContestAnnouncementRequest{Title: "Updated", Content: "Body"}); err != nil {
 		t.Fatalf("update contest announcement: %v", err)
@@ -437,6 +559,16 @@ func TestContestServiceLifecycle(t *testing.T) {
 	}
 	if len(ranklist.List) != 1 || ranklist.List[0].SolvedCount != 1 || ranklist.List[0].Cells[0].WrongAttempts != 1 {
 		t.Fatalf("unexpected contest ranklist: %+v", ranklist)
+	}
+	adminRanklist, err := service.GetAdminRanklist("admin", contestID)
+	if err != nil {
+		t.Fatalf("admin contest ranklist: %v", err)
+	}
+	if len(adminRanklist.List) != 1 {
+		t.Fatalf("unexpected admin ranklist: %+v", adminRanklist)
+	}
+	if _, err := service.GetAdminRanklist("student", contestID); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("expected admin ranklist permission denied, got %v", err)
 	}
 
 	req.Title = "Weekly Updated"
@@ -476,6 +608,14 @@ func TestForumServiceLifecycle(t *testing.T) {
 	teacher = users[1]
 
 	service := NewForumService(db, cache.New(nil))
+	topics, err := service.ListTopics(1, 20, "", "general", nil, nil)
+	if err != nil {
+		t.Fatalf("list topics: %v", err)
+	}
+	if topics.Total != 0 {
+		t.Fatalf("expected empty topic list, got %+v", topics)
+	}
+
 	if _, err := service.CreateTopic(author.ID, dto.CreateForumTopicRequest{Title: "Bad", Content: "No", ScopeType: "problem"}); !errors.Is(err, ErrForumForbidden) {
 		t.Fatalf("expected forum scope forbidden, got %v", err)
 	}
@@ -529,6 +669,16 @@ func TestForumServiceLifecycle(t *testing.T) {
 	}
 	if _, err := service.UpdateReply(author.ID, "student", reply.ID, dto.CreateForumReplyRequest{Content: "Edited"}); err != nil {
 		t.Fatalf("update own reply: %v", err)
+	}
+	if err := service.DeleteReply(author.ID, "student", reply.ID); err != nil {
+		t.Fatalf("delete own reply: %v", err)
+	}
+	topics, err = service.ListTopics(1, 20, "Locked", "general", nil, &author.ID)
+	if err != nil {
+		t.Fatalf("list topics with keyword: %v", err)
+	}
+	if topics.Total != 1 {
+		t.Fatalf("expected listed topic, got %+v", topics)
 	}
 	if err := service.DeleteTopic(author.ID, "student", topic.ID); err != nil {
 		t.Fatalf("delete own topic: %v", err)
@@ -640,6 +790,58 @@ func TestAnnouncementRanklistStatsAndUserServices(t *testing.T) {
 	}
 	if ranklist.Total != 2 || len(ranklist.List) != 2 || ranklist.List[0].SolvedCount != 0 {
 		t.Fatalf("unexpected ranklist: %+v", ranklist)
+	}
+}
+
+func TestTeachingPlaylistDetailProgress(t *testing.T) {
+	db := openServiceTestDB(t)
+	migrateTeachingTablesSQLite(t, db)
+	teacher := model.User{Username: "t_play", UserID: "TPLAY", PasswordHash: "hash", Role: "teacher", Status: "active"}
+	student := model.User{Username: "s_play", UserID: "SPLAY", PasswordHash: "hash", Role: "student", Status: "active"}
+	if err := db.Create(&teacher).Error; err != nil {
+		t.Fatalf("create teacher: %v", err)
+	}
+	if err := db.Create(&student).Error; err != nil {
+		t.Fatalf("create student: %v", err)
+	}
+
+	problems := []model.Problem{
+		{DisplayID: "PL-1", Title: "First", Description: "d", JudgeMode: "standard", TimeLimitMS: 1000, MemoryLimitMB: 128, Visible: true, CreatedBy: teacher.ID},
+		{DisplayID: "PL-2", Title: "Second", Description: "d", JudgeMode: "standard", TimeLimitMS: 1000, MemoryLimitMB: 128, Visible: true, CreatedBy: teacher.ID},
+	}
+	if err := db.Create(&problems).Error; err != nil {
+		t.Fatalf("create problems: %v", err)
+	}
+
+	playlist := model.Playlist{Title: "Training", Description: "demo", Visibility: "public", CreatedBy: teacher.ID}
+	if err := db.Create(&playlist).Error; err != nil {
+		t.Fatalf("create playlist: %v", err)
+	}
+	if err := db.Create(&[]model.PlaylistProblem{
+		{PlaylistID: playlist.ID, ProblemID: problems[0].ID, DisplayOrder: 1},
+		{PlaylistID: playlist.ID, ProblemID: problems[1].ID, DisplayOrder: 2},
+	}).Error; err != nil {
+		t.Fatalf("create playlist problems: %v", err)
+	}
+	if err := db.Create(&model.Submission{
+		UserID: student.ID, ProblemID: problems[0].ID, Language: "cpp", Code: "main", Status: "Accepted",
+	}).Error; err != nil {
+		t.Fatalf("create accepted submission: %v", err)
+	}
+
+	service := NewTeachingService(db)
+	detail, err := service.GetPlaylistDetail(student.ID, "student", playlist.ID, false)
+	if err != nil {
+		t.Fatalf("get playlist detail: %v", err)
+	}
+	if detail.Progress.ProblemCount != 2 || detail.Progress.SolvedCount != 1 || detail.Progress.AttemptedCount != 0 {
+		t.Fatalf("unexpected progress: %+v", detail.Progress)
+	}
+	if detail.Progress.NextProblemID == nil || *detail.Progress.NextProblemID != problems[1].ID {
+		t.Fatalf("unexpected next problem: %+v", detail.Progress)
+	}
+	if len(detail.Problems) != 2 || detail.Problems[0].Status != "accepted" || detail.Problems[1].Status != "not_started" {
+		t.Fatalf("unexpected per-problem status: %+v", detail.Problems)
 	}
 }
 

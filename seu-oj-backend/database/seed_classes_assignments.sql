@@ -2,6 +2,7 @@
 --
 -- Creates:
 --   - one demo teacher account
+--   - one demo admin account
 --   - three demo student accounts
 --   - three active classes
 --   - class members for each class
@@ -43,6 +44,11 @@ INSERT INTO users (username, userid, password_hash, role, status, created_at, up
 SELECT 'demo_cindy', 'S-DEMO-003', @demo_password_hash, 'student', 'active', NOW(), NOW()
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'demo_cindy' OR userid = 'S-DEMO-003');
+
+INSERT INTO users (username, userid, password_hash, role, status, created_at, updated_at)
+SELECT 'demo_admin', 'A-DEMO-2026', @demo_password_hash, 'admin', 'active', NOW(), NOW()
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'demo_admin' OR userid = 'A-DEMO-2026');
 
 UPDATE users
 SET role = 'teacher', status = 'active'
