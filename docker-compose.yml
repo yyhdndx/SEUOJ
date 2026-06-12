@@ -1,0 +1,145 @@
+x-seu-oj-env: &seu-oj-env
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  DB_HOST: "${DB_HOST:-8.140.36.87}"
+  DB_PORT: "${DB_PORT:-3306}"
+  DB_USER: "${DB_USER:-remote_admin}"
+  DB_PASSWORD: "${DB_PASSWORD:-}"
+  DB_NAME: "${DB_NAME:-seuoj}"
+  REDIS_ADDR: "redis:6379"
+  REDIS_PASSWORD: ""
+  REDIS_DB: "0"
+  JWT_SECRET: "${JWT_SECRET:-seu-oj-compose-demo-secret}"
+  DOCKER_HOST: "tcp://docker:2375"
+  TMPDIR: "/judge-work"
+  SANDBOX_DOCKER_IMAGE: "gcc:13"
+
+services:
+  mysql:
+    image: mysql:8.4
+    profiles: ["local-db"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-seuoj_root}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-seu_oj}"
+      MYSQL_ROOT_HOST: "%"
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_ci"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  docker:
+    image: docker:27-dind
+    restart: unless-stopped
+    privileged: true
+    command:
+      - "--registry-mirror=https://docker.m.daocloud.io"
+      - "--registry-mirror=https://docker.1panel.live"
+      - "--registry-mirror=https://docker.1ms.run"
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - docker-data:/var/lib/docker
+      - judge-work:/judge-work
+    healthcheck:
+      test: ["CMD-SHELL", "docker info >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  sandbox-images:
+    image: docker:27-cli
+    restart: "no"
+    environment:
+      DOCKER_HOST: "tcp://docker:2375"
+    depends_on:
+      docker:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        for image in gcc:13 python:3 eclipse-temurin:21 golang:1 rust:1; do
+          docker image inspect "$$image" >/dev/null 2>&1 || docker pull "$$image"
+        done
+
+  db-init:
+    build:
+      context: .
+    image: seu-oj-app:local
+    restart: "no"
+    environment: *seu-oj-env
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        for i in $$(seq 1 60); do
+          /app/bin/db-init && exit 0
+          echo "db-init failed, retrying in 2s ($$i/60)"
+          sleep 2
+        done
+        exit 1
+
+  web:
+    build:
+      context: .
+    image: seu-oj-app:local
+    restart: unless-stopped
+    environment: *seu-oj-env
+    ports:
+      - "${SEUOJ_WEB_PORT:-8080}:8080"
+    volumes:
+      - app-logs:/app/seu-oj-backend/logs
+      - judge-work:/judge-work
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      sandbox-images:
+        condition: service_completed_successfully
+    command: ["/app/bin/seu-oj-web"]
+
+  worker:
+    build:
+      context: .
+    image: seu-oj-app:local
+    restart: unless-stopped
+    environment: *seu-oj-env
+    volumes:
+      - app-logs:/app/seu-oj-backend/logs
+      - judge-work:/judge-work
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      sandbox-images:
+        condition: service_completed_successfully
+    command: ["/app/bin/judge-worker"]
+
+volumes:
+  mysql-data:
+  redis-data:
+  docker-data:
+  judge-work:
+  app-logs:

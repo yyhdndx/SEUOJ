@@ -1,0 +1,17 @@
+.git
+.github
+.gocache
+seu-oj-backend/.gocache
+logs
+seu-oj-backend/logs
+seu-oj-backend/config/config.yaml
+
+**/*.log
+**/*.pid
+**/*.out
+**/*.test
+coverage*
+
+README.pdf
+node_modules
+seu-oj-frontend/CodeMirror/node_modules
